@@ -112,11 +112,11 @@ APPOBJS=$(notdir $(APPFILES:.c=.o))
 %.o:
 	$(CC) $(CFLAGS) -c $(<:.o=.c)
 
-all ipv4 compile: shadow_host shadow_cli
+all ipv4 compile: shadow shadow-cli
 .PHONY: all
 
 clean:
-	rm -f *.o $(LWIPLIB) $(APPLIB) shadow_host shadow_cli *.s .depend* *.core core
+	rm -f *.o $(LWIPLIB) $(APPLIB) shadow shadow-cli *.s .depend* *.core core
 
 depend dep: .depend
 
@@ -131,9 +131,9 @@ $(LWIPLIB): $(LWIPOBJS)
 .depend: shadow_host.c shadow_cli.c $(LWIPFILES) $(APPFILES)
 	$(CCDEP) $(CFLAGS) -MM $^ > .depend || rm -f .depend
 
-shadow_host: .depend $(LWIPLIB) $(APPLIB) shadow_host.o $(APPFILES)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o shadow_host shadow_host.o encrypt.o compress.o $(APPLIB) $(LWIPLIB)
+shadow: .depend $(LWIPLIB) $(APPLIB) shadow_host.o $(APPFILES)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o shadow shadow_host.o encrypt.o compress.o $(APPLIB) $(LWIPLIB)
 
-shadow_cli: .depend $(LWIPLIB) $(APPLIB) shadow_cli.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o shadow_cli shadow_cli.o encrypt.o  compress.o $(APPLIB) $(LWIPLIB) 
+shadow-cli: .depend $(LWIPLIB) $(APPLIB) shadow_cli.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o shadow-cli shadow_cli.o encrypt.o  compress.o $(APPLIB) $(LWIPLIB) 
 

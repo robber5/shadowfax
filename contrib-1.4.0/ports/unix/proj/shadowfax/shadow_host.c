@@ -82,12 +82,38 @@ static char * peer_host;
 unsigned char debug_flags;
 
 static int use_dhcp;
-
+static int run_daemon;
+static const char * pid_file = "/var/run/shadow.pid";
 
 /** @todo add options for selecting netif, starting DHCP client etc */
+
+static const char * opt_descs[] = {
+  /* turn on debugging output (if build with LWIP_DEBUG) */
+  "turn on debugging output (if build with LWIP_DEBUG), default off",
+  /* help */
+  "show help",
+  /* gateway address */
+  "set shadow gw, default 192.168.0.1",
+  /* ip address */
+  "set shadow gw, default 192.168.0.2",
+  /* netmask */
+  "set shadow netmask, default 255.255.255.0",
+  /* shadow dhcp server */
+  "use dhcp, default off",
+  /* bind which host ip? */
+  "set bind host ip address, default 0.0.0.0",
+  /* bind which host port? */
+  "set host listen port, default 53",
+  /* daemon */
+  "run as daemon, default off",
+  /* pid file */
+  "set pid file, default /var/run/shadow.pid",
+  NULL
+};
+
 static struct option longopts[] = {
   /* turn on debugging output (if build with LWIP_DEBUG) */
-  {"debug", no_argument,        NULL, 'D'}, 
+  {"debug", no_argument,        NULL, 'v'}, 
   /* help */
   {"help", no_argument, NULL, 'h'},
   /* gateway address */
@@ -102,6 +128,8 @@ static struct option longopts[] = {
   {"bind-ip", required_argument, NULL, 'b'},
   /* bind which host port? */
   {"listen-port", required_argument, NULL, 'l'},
+  {"daemon", no_argument, NULL, 'D'},
+  {"pid-file", required_argument, NULL, 'p'},
   {NULL,   0,                 NULL,  0}
 };
 
@@ -109,13 +137,38 @@ static struct option longopts[] = {
 
 static void init_netifs(void);
 
+static void clear_cmdline(int argc, char ** argv)
+{
+    int len = 0;
+    int i;
+    for(i = 0 ; i < argc ; i ++) {
+        len += strlen(argv[i]) + 1;
+    }
+    memset(argv[0], 0, len);
+    snprintf(argv[0], len, "shadow");
+}
+
+static void touch_pid(const char * pid_file_name)
+{
+    FILE * pid_f = NULL;
+
+    if((pid_f = fopen(pid_file_name, "wb")) != NULL) {
+        fprintf(pid_f, "%d", getpid());
+        fclose(pid_f);
+        pid_f = NULL;
+    }
+}
+
 static void usage(void)
 {
   unsigned char i;
-  SINF("shadow_host [options] peer-host peer-port\n");
-  SINF("options:\n");
-  for (i = 0; i < NUM_OPTS; i++) {
-    SINF("-%c --%s\n",longopts[i].val, longopts[i].name);
+  
+  printf("shadow_host [options] peer-host peer-port\n");
+  printf("options:\n");
+  for (i = 0; i < sizeof(longopts)/sizeof(struct option); i++) {
+    if(longopts[i].name) {
+        printf("-%c --%s : %s\n",longopts[i].val, longopts[i].name, opt_descs[i]);
+    }
   }
 }
 
@@ -184,6 +237,8 @@ int
 main(int argc, char **argv)
 {
   int ch;
+  int old_argc = argc;
+  char ** old_argv = argv;
 
   /* startup defaults (may be overridden by one or more opts) */
   IP4_ADDR(&shadow_gw, 192,168,0,1);
@@ -198,9 +253,9 @@ main(int argc, char **argv)
   debug_flags = LWIP_DBG_OFF;
   shadow_quiet = 1;
   
-  while ((ch = getopt_long(argc, argv, "Dhg:i:m:b:l:d", longopts, NULL)) != -1) {
+  while ((ch = getopt_long(argc, argv, "Dvhgd:i:m:b:l:p:", longopts, NULL)) != -1) {
     switch (ch) {
-      case 'D':
+      case 'v':
         /*debug_flags |= (LWIP_DBG_ON|LWIP_DBG_TRACE|LWIP_DBG_STATE|LWIP_DBG_FRESH|LWIP_DBG_HALT);*/
         shadow_quiet = 0;
         break;
@@ -226,6 +281,12 @@ main(int argc, char **argv)
       case 'l':
         udpif_state.local_port = (u16_t)htons(atoi(optarg));
         break;
+      case 'D':
+        run_daemon = 1;
+        break;
+      case 'p':
+        pid_file = optarg;
+        break;
       default:
         usage();
         break;
@@ -240,8 +301,18 @@ main(int argc, char **argv)
     exit(1);
   }
 
+  if(run_daemon) {
+    daemon(0,0);
+  }
+
+  if(pid_file) {
+    touch_pid(pid_file);
+  }
+
   peer_host = strdup(argv[0]);
   peer_port = (u16_t)htons(atoi(argv[1]));
+
+  clear_cmdline(old_argc, old_argv);
 
   SINF("System initialized.\n");
     

@@ -1,0 +1,109 @@
+#!/bin/bash
+#
+# shadow                Start up the shadow daemon
+#
+# chkconfig: 2345 55 25
+# description: shadow is a daemon.
+#
+# processname: shadow
+# pidfile: /var/run/shadow.pid
+
+### BEGIN INIT INFO
+# Provides: shadow
+# Required-Start: $local_fs $network $syslog
+# Required-Stop: $local_fs $syslog
+# Should-Start: $syslog
+# Should-Stop: $network $syslog
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: Start up the shadow service
+# Description: shadow is a service to access internal net of baidu.
+### END INIT INFO
+
+# source function library
+. /etc/rc.d/init.d/functions
+
+# pull in sysconfig settings
+[ -f /etc/sysconfig/shadow ] && . /etc/sysconfig/shadow
+
+RETVAL=0
+prog="shadow"
+lockfile=/var/lock/subsys/$prog
+
+# Some functions to make the below more readable
+SHADOW=/usr/bin/shadow
+PID_FILE=/var/run/shadow.pid
+
+runlevel=$(set -- $(runlevel); eval "echo \$$#" )
+
+start()
+{
+        [ -x $shadow ] || exit 5
+        echo -n $"Starting $prog: "
+        daemon $SHADOW ${OPTIONS} && success || failure
+        RETVAL=$?
+        [ $RETVAL -eq 0 ] && touch $lockfile
+        echo
+        return $RETVAL
+}
+
+stop()
+{
+        echo -n $"Stopping $prog: "
+        if [ -n "`pidfileofproc $shadow`" ] ; then
+            killproc $SHADOW
+        else
+            failure $"Stopping $prog"
+        fi
+        RETVAL=$?
+        # if we are in halt or reboot runlevel kill all running sessions
+        # so the TCP connections are closed cleanly
+        if [ "x$runlevel" = x0 -o "x$runlevel" = x6 ] ; then
+            trap '' TERM
+            killall $prog 2>/dev/null
+            trap TERM
+        fi
+        [ $RETVAL -eq 0 ] && rm -f $lockfile $PID_FILE
+        echo
+}
+
+restart() {
+        stop
+        start
+}
+
+rh_status() {
+        status $SHADOW
+}
+
+rh_status_q() {
+        rh_status >/dev/null 2>&1
+}
+
+case "$1" in
+        start)
+                rh_status_q && exit 0
+                start
+                ;;
+        stop)
+                if ! rh_status_q; then
+                        rm -f $lockfile
+                        exit 0
+                fi
+                stop
+                ;;
+        restart)
+                restart
+                ;;
+        status)
+                rh_status
+                RETVAL=$?
+                if [ $RETVAL -eq 3 -a -f $lockfile ] ; then
+                        RETVAL=2
+                fi
+                ;;
+        *)
+                echo $"Usage: $0 {start|stop|restart|status}"
+                RETVAL=2
+esac
+exit $RETVAL

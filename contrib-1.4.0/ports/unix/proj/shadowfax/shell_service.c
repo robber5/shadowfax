@@ -25,17 +25,6 @@
 #include "cmd.h"
 #include "log.h"
 
-#define SHELL_SERVICE_PORT 22
-
-#define RSHELL_CONNECT_PORT 2012
-
-#define RSHELL_INTERVAL_MS 5000
-
-#define SHELL_KEEP_ALIVE_INTERVAL 10
-
-#define SHELL_MAX_KEEP_ALIVE_CNT  10
-
-
 
 extern char ** environ;
 
@@ -542,7 +531,6 @@ static int do_start_shell(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, c
     int ch;
     err_t err;
     struct tcp_pcb *pcb;
-    optarg = NULL;
     optind = 0;
 
     shell_port = SHELL_SERVICE_PORT;

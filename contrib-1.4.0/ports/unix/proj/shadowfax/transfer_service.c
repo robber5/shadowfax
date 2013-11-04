@@ -54,17 +54,6 @@
 #include <time.h>
 
 
-#define TRANSFER_SERVICE_PORT 21
-
-#define TRANSFER_SERVICE_PASV_PORT_FROM 4096
-
-#define TRANSFER_SERVICE_PASV_PORT_TO   32767
-
-
-#define TRANSFER_KEEP_ALIVE_INTERVAL 10
-
-#define TRANSFER_MAX_KEEP_ALIVE_CNT  10
-
 #define msg110 "110 MARK %s = %s."
 /*
          110 Restart marker reply.
@@ -1430,7 +1419,7 @@ static int do_start_transfer(cmd_slot_t * slot, cmd_out_handle_t * out, int argc
     }
 
     
-    while( (ch = getopt(argc, argv, "b:f:t")) != -1) {
+    while( (ch = getopt(argc, argv, "b:f:t:")) != -1) {
         
         switch(ch) {
         

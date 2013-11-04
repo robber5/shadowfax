@@ -27,12 +27,6 @@
 #include "log.h"
 
 
-#define FORWARD_SERVICE_PORT 24
-#define RFORWARD_CONNECT_PORT 2012
-#define RFORWARD_INTERVAL_MS 5000
-#define FORWARD_KEEP_ALIVE_INTERVAL 10
-#define FORWARD_MAX_KEEP_ALIVE_CNT  10
-
 extern char ** environ;
 
 static sys_sem_t rforward_sem;

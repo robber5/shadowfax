@@ -71,7 +71,7 @@ const struct eth_addr ethzero = {{0,0,0,0,0,0}};
  *  for ARP_TMR_INTERVAL = 5000, this is
  *  (240 * 5) seconds = 20 minutes.
  */
-#define ARP_MAXAGE 240
+#define ARP_MAXAGE 6
 /** the time an ARP entry stays pending after first request,
  *  for ARP_TMR_INTERVAL = 5000, this is
  *  (2 * 5) seconds = 10 seconds.

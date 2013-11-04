@@ -48,26 +48,26 @@
 #define MEM_DEBUG        LWIP_DBG_OFF
 #define MEMP_DEBUG       LWIP_DBG_OFF
 #define PBUF_DEBUG       LWIP_DBG_OFF
-#define API_LIB_DEBUG    LWIP_DBG_ON
-#define API_MSG_DEBUG    LWIP_DBG_ON
-#define TCPIP_DEBUG      LWIP_DBG_ON
-#define NETIF_DEBUG      LWIP_DBG_ON
-#define SOCKETS_DEBUG    LWIP_DBG_ON
-#define DEMO_DEBUG       LWIP_DBG_ON
-#define IP_DEBUG         LWIP_DBG_ON
-#define IP_REASS_DEBUG   LWIP_DBG_ON
-#define RAW_DEBUG        LWIP_DBG_ON
-#define ICMP_DEBUG       LWIP_DBG_ON
-#define UDP_DEBUG        LWIP_DBG_ON
-#define TCP_DEBUG        LWIP_DBG_ON
-#define TCP_INPUT_DEBUG  LWIP_DBG_ON
-#define TCP_OUTPUT_DEBUG LWIP_DBG_ON
-#define TCP_RTO_DEBUG    LWIP_DBG_ON
-#define TCP_CWND_DEBUG   LWIP_DBG_ON
-#define TCP_WND_DEBUG    LWIP_DBG_ON
-#define TCP_FR_DEBUG     LWIP_DBG_ON
-#define TCP_QLEN_DEBUG   LWIP_DBG_ON
-#define TCP_RST_DEBUG    LWIP_DBG_ON
+#define API_LIB_DEBUG    LWIP_DBG_OFF
+#define API_MSG_DEBUG    LWIP_DBG_OFF
+#define TCPIP_DEBUG      LWIP_DBG_OFF
+#define NETIF_DEBUG      LWIP_DBG_OFF
+#define SOCKETS_DEBUG    LWIP_DBG_OFF
+#define DEMO_DEBUG       LWIP_DBG_OFF
+#define IP_DEBUG         LWIP_DBG_OFF
+#define IP_REASS_DEBUG   LWIP_DBG_OFF
+#define RAW_DEBUG        LWIP_DBG_OFF
+#define ICMP_DEBUG       LWIP_DBG_OFF
+#define UDP_DEBUG        LWIP_DBG_OFF
+#define TCP_DEBUG        LWIP_DBG_OFF
+#define TCP_INPUT_DEBUG  LWIP_DBG_OFF
+#define TCP_OUTPUT_DEBUG LWIP_DBG_OFF
+#define TCP_RTO_DEBUG    LWIP_DBG_OFF
+#define TCP_CWND_DEBUG   LWIP_DBG_OFF
+#define TCP_WND_DEBUG    LWIP_DBG_OFF
+#define TCP_FR_DEBUG     LWIP_DBG_OFF
+#define TCP_QLEN_DEBUG   LWIP_DBG_OFF
+#define TCP_RST_DEBUG    LWIP_DBG_OFF
 
 extern unsigned char debug_flags;
 #define LWIP_DBG_TYPES_ON debug_flags
@@ -145,6 +145,7 @@ a lot of data that needs to be copied, this should be set high. */
 #define SYS_LIGHTWEIGHT_PROT           1
 
 /* ---------- TCP options ---------- */
+#define TCP_TMR_INTERVAL        20
 #define LWIP_TCP                1
 #define TCP_TTL                 255
 
@@ -168,7 +169,7 @@ a lot of data that needs to be copied, this should be set high. */
 #define TCP_SNDLOWAT		(TCP_SND_BUF/2)
 
 /* TCP receive window. */
-#define TCP_WND                 8096
+#define TCP_WND                 8192
 
 /* Maximum number of retransmissions of data segments. */
 #define TCP_MAXRTX              12
@@ -316,5 +317,8 @@ a lot of data that needs to be copied, this should be set high. */
 #define MAXSECRETLEN    256     /* max length of password or secret */
 
 #endif /* PPP_SUPPORT > 0 */
+
+#define KEEP_ALIVE_INTERVAL 100
+#define MAX_KEEP_ALIVE_CNT  10
 
 #endif /* __LWIPOPTS_H__ */
