@@ -6,9 +6,9 @@
 
 #define SHADOW_COMPRESS_MAGIC 0xAABB
 #define SHADOW_MAX_COMPRESS_BUFFER 4096
-#define SHADOW_COMPRESS_THRES  256 /*  if size < 1024, don't compress */
+#define SHADOW_COMPRESS_THRES  256 /*  if size < 256, don't compress */
 
-struct s_compress_header /* 12 bytes */
+struct s_compress_header /* 8 bytes */
 {
     u_int16_t magic;
     u_int16_t flag;

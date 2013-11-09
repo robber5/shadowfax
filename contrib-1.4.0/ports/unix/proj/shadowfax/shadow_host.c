@@ -194,6 +194,7 @@ init_netifs(void)
     netif_set_default(netif_add(&netif,&shadow_ipaddr, &shadow_netmask, &shadow_gw, &udpif_state, udpif_init,
                       tcpip_input));
     netif_set_up(&netif);
+    netif_set_default(&netif);
   } else {
     IP4_ADDR(&shadow_gw, 0,0,0,0);
     IP4_ADDR(&shadow_ipaddr, 0,0,0,0);
@@ -201,6 +202,7 @@ init_netifs(void)
 
     netif_add(&netif, &shadow_ipaddr, &shadow_netmask, &shadow_gw, &udpif_state, udpif_init,
               tcpip_input);
+    netif_set_up(&netif);
     netif_set_default(&netif);
     dhcp_start(&netif);
   }

@@ -98,7 +98,7 @@ ARCHFILES=$(wildcard $(LWIPARCH)/*.c $(LWIPARCH)/netif/udpif.c $(LWIPARCH)/netif
 APPFILES=$(CONTRIBDIR)/apps/httpserver_raw/fs.c $(CONTRIBDIR)/apps/httpserver_raw/httpd.c \
 	$(CONTRIBDIR)/apps/udpecho/udpecho.c $(CONTRIBDIR)/apps/tcpecho/tcpecho.c \
 	$(CONTRIBDIR)/apps/shell/shell.c shell_service.c transfer_service.c vfs.c fifo.c console.c cmd.c peer_refresher.c \
-	forward_service.c socket.c misc_cmd.c encrypt.c log.c compress.c
+	forward_service.c socket.c misc_cmd.c encrypt.c log.c compress.c ping.c
 
 # LWIPFILES: All the above.
 LWIPFILES=$(COREFILES) $(CORE4FILES) $(SNMPFILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES)
@@ -112,11 +112,11 @@ APPOBJS=$(notdir $(APPFILES:.c=.o))
 %.o:
 	$(CC) $(CFLAGS) -c $(<:.o=.c)
 
-all ipv4 compile: shadow shadow-cli
+all ipv4 compile: shadow shadow-switch
 .PHONY: all
 
 clean:
-	rm -f *.o $(LWIPLIB) $(APPLIB) shadow shadow-cli *.s .depend* *.core core
+	rm -f *.o $(LWIPLIB) $(APPLIB) shadow shadow-switch *.s .depend* *.core core
 
 depend dep: .depend
 
@@ -128,12 +128,12 @@ $(APPLIB): $(APPOBJS)
 $(LWIPLIB): $(LWIPOBJS)
 	$(AR) $(ARFLAGS) $(LWIPLIB) $?
 
-.depend: shadow_host.c shadow_cli.c $(LWIPFILES) $(APPFILES)
+.depend: shadow_host.c shadow_switch.c $(LWIPFILES) $(APPFILES)
 	$(CCDEP) $(CFLAGS) -MM $^ > .depend || rm -f .depend
 
 shadow: .depend $(LWIPLIB) $(APPLIB) shadow_host.o $(APPFILES)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o shadow shadow_host.o encrypt.o compress.o $(APPLIB) $(LWIPLIB)
 
-shadow-cli: .depend $(LWIPLIB) $(APPLIB) shadow_cli.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o shadow-cli shadow_cli.o encrypt.o  compress.o $(APPLIB) $(LWIPLIB) 
+shadow-switch: .depend $(LWIPLIB) $(APPLIB) shadow_switch.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o shadow-switch shadow_switch.o encrypt.o  compress.o $(APPLIB) $(LWIPLIB) 
 
