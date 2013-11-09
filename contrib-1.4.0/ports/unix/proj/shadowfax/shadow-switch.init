@@ -1,15 +1,15 @@
 #!/bin/bash
 #
-# shadow-cli                Start up the shadow-cli daemon
+# shadow-switch                Start up the shadow-switch daemon
 #
 # chkconfig: 2345 55 25
 # description: shadow is a daemon.
 #
-# processname: shadow-cli
-# pidfile: /var/run/shadow-cli.pid
+# processname: shadow-switch
+# pidfile: /var/run/shadow-switch.pid
 
 ### BEGIN INIT INFO
-# Provides: shadow-cli
+# Provides: shadow-switch
 # Required-Start: $local_fs $network $syslog
 # Required-Stop: $local_fs $syslog
 # Should-Start: $syslog
@@ -24,15 +24,15 @@
 . /etc/rc.d/init.d/functions
 
 # pull in sysconfig settings
-[ -f /etc/sysconfig/shadow-cli ] && . /etc/sysconfig/shadow-cli
+[ -f /etc/sysconfig/shadow-switch ] && . /etc/sysconfig/shadow-switch
 
 RETVAL=0
-prog="shadow-cli"
+prog="shadow-switch"
 lockfile=/var/lock/subsys/$prog
 
 # Some functions to make the below more readable
-SHADOW_CLI=/usr/bin/shadow-cli
-PID_FILE=/var/run/shadow-cli.pid
+SHADOW_SWITCH=/usr/bin/shadow-switch
+PID_FILE=/var/run/shadow-switch.pid
 
 runlevel=$(set -- $(runlevel); eval "echo \$$#" )
 
@@ -40,7 +40,7 @@ start()
 {
         [ -x $shadow ] || exit 5
         echo -n $"Starting $prog: "
-        daemon $SHADOW_CLI ${OPTIONS} && success || failure
+        daemon $SHADOW_SWITCH ${OPTIONS} && success || failure
         RETVAL=$?
         [ $RETVAL -eq 0 ] && touch $lockfile
         echo
@@ -50,8 +50,8 @@ start()
 stop()
 {
         echo -n $"Stopping $prog: "
-        if [ -n "`pidfileofproc $SHADOW_CLI`" ] ; then
-            killproc $SHADOW_CLI
+        if [ -n "`pidfileofproc $SHADOW_SWITCH`" ] ; then
+            killproc $SHADOW_SWITCH
         else
             failure $"Stopping $prog"
         fi
@@ -73,7 +73,7 @@ restart() {
 }
 
 rh_status() {
-        status $SHADOW
+        status $SHADOW_SWITCH
 }
 
 rh_status_q() {
