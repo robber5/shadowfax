@@ -52,7 +52,7 @@
 #include "lwip/tcpip.h"
 #include "lwip/sockets.h"
 #include "lwip/dhcp.h"
-
+#include "lwip/raw.h"
 #include "netif/udpif.h"
 
 #include "netif/tcpdump.h"
@@ -65,6 +65,7 @@
 #include "shell_service.h"
 #include "transfer_service.h"
 #include "forward_service.h"
+#include "ping.h"
 #include "misc_cmd.h"
 #include "log.h"
 
@@ -229,8 +230,8 @@ main_thread(void *arg)
   shell_service_init();
   transfer_service_init();
   forward_service_init();
+  ping_init();
   misc_cmd_init();
-
   /* Block forever. */
   sys_sem_wait(&sem);
 }

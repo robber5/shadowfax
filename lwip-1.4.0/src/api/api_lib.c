@@ -88,6 +88,7 @@ netconn_new_with_proto_and_callback(enum netconn_type t, u8_t proto, netconn_cal
       return NULL;
     }
   }
+  LWIP_DEBUGF(NETCONN_DEBUG, ("netconn_new_with_proto_and_callback return %p\n", conn));
   return conn;
 }
 

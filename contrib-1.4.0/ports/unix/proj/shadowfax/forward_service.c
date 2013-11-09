@@ -25,7 +25,7 @@
 #include "cmd.h"
 #include "socket.h"
 #include "log.h"
-
+#include "worker_thread.h"
 
 extern char ** environ;
 
@@ -549,24 +549,6 @@ static int do_get_forward_status(cmd_slot_t * slot, cmd_out_handle_t * out, int 
         status_str[forward_status],
         forward_port, forward_session_cnt);
     return 0;
-}
-
-
-static int worker_thread_new(const char *name, lwip_thread_fn function, void *arg, int stacksize, int prio)
-{
-  int code;
-  pthread_t tmp;
-  LWIP_UNUSED_ARG(name);
-  LWIP_UNUSED_ARG(stacksize);
-  LWIP_UNUSED_ARG(prio);
-
-  code = pthread_create(&tmp,
-                        NULL, 
-                        (void *(*)(void *)) 
-                        function, 
-                        arg);
-  
-  return code == 0 ? 0 : -1;;
 }
 
 static int do_start_rforward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)

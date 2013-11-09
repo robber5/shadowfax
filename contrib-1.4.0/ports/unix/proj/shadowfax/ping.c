@@ -57,6 +57,7 @@
 
 #include "cmd.h"
 #include "log.h"
+#include "worker_thread.h"
 
 /* ping variables */
 static u16_t ping_seq_num;
@@ -123,6 +124,8 @@ ping_recv(cmd_out_handle_t * out, int s, ip_addr_t * ping_target)
 
   LWIP_UNUSED_ARG(ping_target);
 
+  fromlen = sizeof(from);
+
   while((len = lwip_recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr*)&from, (socklen_t*)&fromlen)) > 0) {
     if (len >= (int)(sizeof(struct ip_hdr)+sizeof(struct icmp_echo_hdr))) {
       ip_addr_t fromaddr;
@@ -135,78 +138,108 @@ ping_recv(cmd_out_handle_t * out, int s, ip_addr_t * ping_target)
 
       iphdr = (struct ip_hdr *)buf;
       iecho = (struct icmp_echo_hdr *)(buf + (IPH_HL(iphdr) * 4));
-      if ((iecho->id == PING_ID) && (iecho->seqno == htons(ping_seq_num))) {
-        /* do some ping result processing */
-        PING_RESULT((ICMPH_TYPE(iecho) == ICMP_ER));
-        return;
-      } else {
-        cmd_printf(out, "ping: drop\n");
-      }
+      SDBG("ping_recv quit 1, len is %d\n", len);
+      return;
     }
   }
 
-  if (len == 0) {
+  if (len <= 0) {
     cmd_printf(out, "ping: recv - %"U32_F" ms - timeout\n", sys_now()-ping_time);
   }
 
   /* do some ping result processing */
   PING_RESULT(0);
+  SDBG("ping_recv quit 2, len is %d\n", len);
 }
 
+
+typedef struct _ping_param_t
+{
+    cmd_slot_t * slot;
+    cmd_out_handle_t * out;
+    int timeout;
+    int count;
+    ip_addr_t target;
+}ping_param_t;
+
 static void
-start_ping(cmd_out_handle_t * out, ip_addr_t *ping_target, int timeout, int count)
+ping_thread(void * param)
 {
   int s;
+  ping_param_t *p = (ping_param_t *)param;
 
+  SDBG("create socket, timeout %d, count %d\n", p->timeout, p->count);
   if ((s = lwip_socket(AF_INET, SOCK_RAW, IP_PROTO_ICMP)) < 0) {
+    free(param);
+    SDBG("ping_thread abort\n");
     return;
   }
 
-  lwip_setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+  SDBG("create socket down\n");
 
-  while (count --) {
+  lwip_setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &p->timeout, sizeof(p->timeout));
 
-    if (ping_send(out, s, ping_target) == ERR_OK) {
+  SDBG("setsockopt socket down\n");
 
-      cmd_printf(out, "ping: send ");
-      cmd_printf(out, "%"U16_F".%"U16_F".%"U16_F".%"U16_F"\n", 
-          ip4_addr1_16(ping_target), ip4_addr2_16(ping_target), ip4_addr3_16(ping_target), ip4_addr4_16(ping_target));
+  while (p->count --) {
+
+    SDBG("will do ping_send\n");
+    if (ping_send(p->out, s, &p->target) == ERR_OK) {
+    SDBG("ping_send done\n");
+
+      cmd_printf(p->out, "ping: send ");
+      cmd_printf(p->out, "%"U16_F".%"U16_F".%"U16_F".%"U16_F"\n", 
+          ip4_addr1_16(&p->target), ip4_addr2_16(&p->target), ip4_addr3_16(&p->target), ip4_addr4_16(&p->target));
 
       ping_time = sys_now();
-      ping_recv(out, s, ping_target);
+      ping_recv(p->out, s, &p->target);
     } else {
-      cmd_printf(out, "ping: send ");
-      cmd_printf(out, "%"U16_F".%"U16_F".%"U16_F".%"U16_F" - error\n", 
-          ip4_addr1_16(ping_target), ip4_addr2_16(ping_target), ip4_addr3_16(ping_target), ip4_addr4_16(ping_target));
+      cmd_printf(p->out, "ping: send ");
+      cmd_printf(p->out, "%"U16_F".%"U16_F".%"U16_F".%"U16_F" - error\n", 
+          ip4_addr1_16(&p->target), ip4_addr2_16(&p->target), ip4_addr3_16(&p->target), ip4_addr4_16(&p->target));
     }
     sys_msleep(PING_DELAY);
   }
 
   lwip_close(s);
+
+  free(p);
+
+  SDBG("ping_thread quit\n");
 }
 
 static int do_ping(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
 {
-    int count = PING_COUNT;
-    int timeout = PING_RCV_TIMEO;
     int ch;
-    ip_addr_t ping_target;
     optarg = NULL;
     optind = 0;
+    ping_param_t * param;
+
+    param = malloc(sizeof(ping_param_t));
+    if(NULL == param) {
+        cmd_printf(out,"OOM\n");
+        return -1;
+    }
+
+    param->count = PING_COUNT;
+    param->timeout = PING_RCV_TIMEO;
+    param->slot = slot;
+    param->out  = out;
 
 
     while( (ch = getopt(argc, argv, "n:t:")) != -1) {
         switch(ch) {
         case 'n':
-            count = atoi(optarg);
-            if(count <= 0) count = PING_COUNT;
+            param->count = atoi(optarg);
+            if(param->count <= 0) param->count = PING_COUNT;
             break;
         case 't':
-            timeout = atoi(optarg);
-            if(timeout <= 0) count = PING_RCV_TIMEO;
+            param->timeout = atoi(optarg);
+            if(param->timeout <= 0) param->timeout = PING_RCV_TIMEO;
             break;
         default:
             cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+            free(param);
             return -1;
         }
     }
@@ -216,15 +249,18 @@ static int do_ping(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** 
 
     if(argc != 1) {
         cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+        free(param);
         return -1;
     }
 
-    if(!inet_aton(argv[0], &ping_target)) {
+    if(!inet_aton(argv[0], &param->target)) {
         cmd_printf(out, "invalid ip %s\n", argv[0]);
+        free(param);
         return -1;
     }
-    //start_ping(cmd_out_handle_t * out, ip_addr_t *ping_target, int timeout, int count)
-    start_ping(out, &ping_target, timeout, count);
+
+    worker_thread_new("ping_thread", ping_thread, param, DEFAULT_THREAD_STACKSIZE, DEFAULT_THREAD_PRIO);
+    /* param freed by thread */
 
     return 0;
 }

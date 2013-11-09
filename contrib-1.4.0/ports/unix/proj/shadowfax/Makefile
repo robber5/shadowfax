@@ -98,7 +98,7 @@ ARCHFILES=$(wildcard $(LWIPARCH)/*.c $(LWIPARCH)/netif/udpif.c $(LWIPARCH)/netif
 APPFILES=$(CONTRIBDIR)/apps/httpserver_raw/fs.c $(CONTRIBDIR)/apps/httpserver_raw/httpd.c \
 	$(CONTRIBDIR)/apps/udpecho/udpecho.c $(CONTRIBDIR)/apps/tcpecho/tcpecho.c \
 	$(CONTRIBDIR)/apps/shell/shell.c shell_service.c transfer_service.c vfs.c fifo.c console.c cmd.c peer_refresher.c \
-	forward_service.c socket.c misc_cmd.c encrypt.c log.c compress.c ping.c
+	forward_service.c socket.c misc_cmd.c encrypt.c log.c compress.c ping.c worker_thread.c
 
 # LWIPFILES: All the above.
 LWIPFILES=$(COREFILES) $(CORE4FILES) $(SNMPFILES) $(APIFILES) $(NETIFFILES) $(ARCHFILES)

@@ -1560,8 +1560,8 @@ static int do_get_transfer_status(cmd_slot_t * slot, cmd_out_handle_t * out, int
     LWIP_UNUSED_ARG(argv);
 
 
-    cmd_printf(out, "shell status: %s, port is %d, session count %d\n",
- status_str[transfer_status], transfer_port, transfer_session_cnt);
+    cmd_printf(out, "shell status: %s, port is %d, session count %d\n", 
+        status_str[transfer_status], transfer_port, transfer_session_cnt);
 
     return 0;
 
