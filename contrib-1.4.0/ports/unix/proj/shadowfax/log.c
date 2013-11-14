@@ -5,7 +5,7 @@
 
 int shadow_quiet;
 
-void _print_log(int level, const char * fmt, ...)
+void _print_log(int level, const char * file, int line, const char * fmt, ...)
 {
 
     va_list ap;
@@ -35,7 +35,8 @@ void _print_log(int level, const char * fmt, ...)
             log_str = "???"; break;
 
     }
-    len += snprintf(buffer + len, sizeof(buffer) - len, "[%s] ", log_str);
+    len += snprintf(buffer + len, sizeof(buffer) - len, "[%s]", log_str);
+    len += snprintf(buffer + len, sizeof(buffer) - len, "[%s:%d]", file, line);
 
     va_start(ap, fmt);
     len += vsnprintf(buffer + len, sizeof(buffer) - len, fmt, ap);
