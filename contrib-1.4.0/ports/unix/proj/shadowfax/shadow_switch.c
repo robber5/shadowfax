@@ -26,11 +26,13 @@
 #include "log.h"
 #include "encrypt.h"
 #include "compress.h"
+#include "list.h"
 
 /* defines */
 #define DEB_NET_TUN "/dev/net/tun"
 #define DEFAULT_LISTEN_PORT 53
 #define CACHE_HASH_SIZE          1024
+#define CACHE_TTL_SEC            60
 #define DEFAULT_TAP_ADDRESS "192.168.0.1"
 #define DEFAULT_TAP_MASK "255.255.255.0"
 #define DEFAULT_PID_FILE "/var/run/shadow-cli.pid"
@@ -59,13 +61,14 @@ struct wrap_packet_t
 
 struct addr_cache_t
 {
-    struct addr_cache_t * next;
+    struct list_head link;
     uint8_t eth[ETH_ALEN];
     struct sockaddr_in dst;
     void * enc_handle;
+    time_t time_stamp;
 };
 
-struct addr_cache_t * cache_header[CACHE_HASH_SIZE];
+struct list_head cache_header[CACHE_HASH_SIZE];
 
 static const char * opt_descs[]  = {
     "turn debug on, default off",
@@ -87,7 +90,7 @@ static struct option longopts[] = {
   /* help */
   {"help", no_argument, NULL, 'h'},
   /* run background ?*/
-  {"daemon", no_argument, NULL, 'd'},
+  {"daemon", no_argument, NULL, 'D'},
   /* promiscuous mode */
   {"promis", no_argument, NULL, 'P'},
   /* run background ?*/
@@ -107,11 +110,11 @@ static struct option longopts[] = {
 static void usage(void)
 {
   unsigned char i;
-  SINF("shadow-switch [options]\n");
-  SINF("options:\n");
+  printf("shadow-switch [options]\n");
+  printf("options:\n");
   for (i = 0; i < sizeof(longopts)/sizeof(struct option); i++) {
     if(longopts[i].name) {
-        SINF("-%c --%s : %s \n",longopts[i].val, longopts[i].name, opt_descs[i]);
+        printf("     -%c --%s : %s \n",longopts[i].val, longopts[i].name, opt_descs[i]);
     }
   }
 }
@@ -123,24 +126,57 @@ static int addr_hash(uint8_t * dst_mac)
     return val % CACHE_HASH_SIZE;
 }
 
+static struct addr_cache_t * new_cache_entry(uint8_t * dst_mac, struct sockaddr_in * dst_addr)
+{
+    struct addr_cache_t * ret = NULL;
+    ret = malloc(sizeof(struct addr_cache_t));
+    if(NULL != ret) {
+        memset(ret, 0, sizeof(struct addr_cache_t));
+        memcpy(ret->eth, dst_mac, sizeof(ret->eth));
+        memcpy(&ret->dst, dst_addr, sizeof(ret->dst));
+        ret->enc_handle = new_enc_handle();
+        set_key(ret->enc_handle, ret->eth, sizeof(ret->eth));
+        ret->time_stamp = time(NULL);
+        INIT_LIST_HEAD(&ret->link);
+        SDBG("NEW cache entry %02x:%02x:%02x:%02x:%02x:%02x->%s:%d\n", 
+            ret->eth[0], ret->eth[1],ret->eth[2],ret->eth[3],ret->eth[4],ret->eth[5],
+            inet_ntoa(ret->dst.sin_addr),
+            htons(ret->dst.sin_port)
+        );
+    }
+    return ret;
+}
+
+static void free_cache_entry(struct addr_cache_t * entry)
+{
+
+    if(NULL != entry) {
+        SDBG("Free cache entry %02x:%02x:%02x:%02x:%02x:%02x->%s:%d\n", 
+            entry->eth[0], entry->eth[1],entry->eth[2],entry->eth[3],entry->eth[4],entry->eth[5],
+            inet_ntoa(entry->dst.sin_addr),
+            htons(entry->dst.sin_port)
+         );
+        free_enc_handle(entry->enc_handle);
+        free(entry);
+    }
+}
+
 static struct addr_cache_t * lookup_cache(uint8_t * dst_mac)
 {
     int i;
-    static struct addr_cache_t * head;
+    struct list_head *head = NULL;
+    struct addr_cache_t *pos = NULL;
 
     i = addr_hash(dst_mac);
 
-    if(cache_header[i] == NULL) {
-        return NULL;
-    } else {
-        head = cache_header[i];
-        while(head) {
-            if(!memcmp(dst_mac, head->eth, sizeof(head->eth))) {
-                return head;
-            }
-            head = head->next;
+    head = &cache_header[i];
+
+    list_for_each_entry(pos, head, link) {
+        if(!memcmp(dst_mac, pos->eth, sizeof(pos->eth))) {
+            return pos;
         }
     }
+
     return NULL;
 }
 
@@ -149,24 +185,38 @@ static struct addr_cache_t * update_cache(uint8_t * dst_mac, struct sockaddr_in 
     struct addr_cache_t * ret = NULL;
     int i;
 
-
     ret = lookup_cache(dst_mac);
+    i = addr_hash(dst_mac);
+
     if(NULL == ret) {
-        i = addr_hash(dst_mac);
-        ret = malloc(sizeof(struct addr_cache_t));
+        ret = new_cache_entry(dst_mac, dst_addr);
         if(NULL != ret) {
-            ret->next = cache_header[i];
-            cache_header[i] = ret;
-            memcpy(ret->eth, dst_mac, sizeof(ret->eth));
-            memcpy(&ret->dst, dst_addr, sizeof(ret->dst));
-            ret->enc_handle = new_enc_handle();
-            set_key(ret->enc_handle, ret->eth, sizeof(ret->eth));
+            list_add(&cache_header[i], &ret->link);
         }
     } else {
-         memcpy(&ret->dst, dst_addr, sizeof(ret->dst));
+        memcpy(&ret->dst, dst_addr, sizeof(ret->dst));
+        ret->time_stamp = time(NULL);
     }
 
     return ret;
+}
+
+static void clear_cache(void)
+{
+    int i;
+    time_t current = time(NULL);
+    struct addr_cache_t * pos = NULL, *n = NULL; 
+    struct list_head *head = NULL;
+
+    for(i = 0 ; i < CACHE_HASH_SIZE; i ++) {
+        head = &cache_header[i];
+        list_for_each_entry_safe(pos, n, head, link){
+            if(pos->time_stamp + CACHE_TTL_SEC < current) {
+                list_del(&pos->link);
+                free_cache_entry(pos);
+            }
+        }
+    }
 }
 
 static void touch_pid(const char * pid_file_name)
@@ -237,7 +287,8 @@ static int send_raw_packet(struct wrap_packet_t * packet, struct addr_cache_t * 
 
 static int broadcast_raw_packet(struct wrap_packet_t * packet, int fd)
 {
-    struct addr_cache_t * p;
+    struct addr_cache_t * pos = NULL;
+    struct list_head *head = NULL;
     int i;
     size_t size;
     char buffer[40960];
@@ -246,13 +297,12 @@ static int broadcast_raw_packet(struct wrap_packet_t * packet, int fd)
     memcpy(buffer, packet, size);
 
     for(i = 0 ; i < CACHE_HASH_SIZE ; i ++) {
-        p = cache_header[i];
-        while(p) {
-            if(send_raw_packet(packet, p, fd) < 0) {
+        head = &cache_header[i];
+        list_for_each_entry(pos, head, link) {
+            if(send_raw_packet(packet, pos, fd) < 0) {
                 return -1;
             }
             memcpy(packet, buffer, size);
-            p = p->next;
         }
     }
     return 0;
@@ -295,8 +345,8 @@ static int parse_addr(struct sockaddr_in * addr, const char * addr_str, u_int16_
     memset(addr, 0, sizeof(struct sockaddr_in));
     addr->sin_family = AF_INET;
     addr->sin_port = htons(port);
-    if(inet_aton(addr_str, &addr->sin_addr) != 0) {
-                return -1;
+    if(inet_aton(addr_str, &addr->sin_addr) == 0) {
+        return -1;
     }
     return 0;
 }
@@ -409,10 +459,17 @@ err:
     }
     return -1;
 }
-
+static int set_non_block(int fd)
+{
+    int flags = fcntl(fd, F_GETFL, 0);
+    if(flags < 0) return -1;
+    flags = fcntl(fd, F_SETFL, flags|O_NONBLOCK);
+    if(flags < 0) return -1;
+    return 0;
+}
 int main(int argc, char *argv[])
 {
-    int ch, ret;
+    int ch, ret, i;
     char tap_name[IFNAMSIZ];
     char tap_address_str[16] = DEFAULT_TAP_ADDRESS;
     struct sockaddr_in tap_address;
@@ -435,7 +492,11 @@ int main(int argc, char *argv[])
 
     shadow_quiet = 1;
 
-    while ((ch = getopt_long(argc, argv, "vhdPb:l:i:m:H:", longopts, NULL)) != -1) {
+    for (i = 0 ; i < CACHE_HASH_SIZE; i++) {
+        INIT_LIST_HEAD(&cache_header[i]);
+    }
+
+    while ((ch = getopt_long(argc, argv, "vhDPb:l:i:m:H:p:", longopts, NULL)) != -1) {
         switch(ch) {
         case 'v':
             shadow_quiet = 0;
@@ -444,7 +505,7 @@ int main(int argc, char *argv[])
             usage();
             exit(0);
             break;
-        case 'd':
+        case 'D':
             run_daemon = 1;
             break;
         case 'P':
@@ -510,25 +571,15 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-/*    if(set_non_block(sock_fd) < 0) {
+    if(set_non_block(sock_fd) < 0) {
         SERR("socket: cannot set non-block socket: %m\n");
         exit(1);
-    }*/
+    }
 
     if(bind(sock_fd, (struct sockaddr *)&udp_address, sizeof(udp_address)) == -1) {
         SERR("bind: bind error: %m\n");
         exit(1);
     }
-
-/*
-    snprintf(cmd, sizeof(cmd), "ifconfig %s hw ether %s", tap_name, tap_mac);
-    SINF("run cmd %s\n", cmd);
-    system(cmd);
-
-    snprintf(cmd, sizeof(cmd), "ifconfig %s %s netmask %s up", tap_name, tap_address, tap_gw_mask);
-    SINF("run cmd %s\n", cmd);
-    system(cmd);
-*/
 
     while(1) {
         struct addr_cache_t * cache_src, * cache_dst;
@@ -547,9 +598,9 @@ int main(int argc, char *argv[])
         FD_SET(tap_fd, &r_fdset); 
         FD_SET(sock_fd, &r_fdset); 
         ret = tap_fd > sock_fd ? (tap_fd + 1) : (sock_fd + 1);
-        timeo.tv_sec = 0;
-        timeo.tv_usec = 100*1000; /* 100 ms */
-        ret = select(ret, &r_fdset, NULL, NULL, &timeo);
+        timeo.tv_sec = 10;
+        timeo.tv_usec = 0; /* 100 ms */
+        ret = select(ret, &r_fdset, NULL, NULL, NULL);
         if(ret > 0) {
           if(FD_ISSET(tap_fd, &r_fdset)) {
             /* read raw packet from tap and write to socket */
@@ -566,12 +617,16 @@ int main(int argc, char *argv[])
 
             if(is_broad_cast_mac(p_packet->packet.eth.ether_dhost) || 
                 (cache_dst = lookup_cache(p_packet->packet.eth.ether_dhost)) == NULL){
+                SDBG("broadcast_raw_packet\n", ret);
                 broadcast_raw_packet(p_packet, sock_fd);
             } else {
                 send_raw_packet(p_packet, cache_dst, sock_fd);
+                SDBG("send_raw_packet\n", ret);
             }
 
-          } else if(FD_ISSET(sock_fd, &r_fdset)) {
+          }
+          
+          if(FD_ISSET(sock_fd, &r_fdset)) {
             /* read wrap packet from socket and write to tap or socket */
             /* packet come from other host, some should send to tap, some should send to other host */
             ret = recvfrom(sock_fd, p_packet, sizeof(buffer), 0, (struct sockaddr *)&tmp_addr, &tmp_len);
@@ -594,6 +649,7 @@ int main(int argc, char *argv[])
             if(is_self_mac(p_packet->dup_eth.ether_dhost, tap_mac) || 
                 is_broad_cast_mac(p_packet->dup_eth.ether_dhost) || 
                 is_promiscuous_mode) { /* send to tap */
+                SDBG("write tap fd\n", ret);
                 ret = write(tap_fd, &p_packet->packet, p_packet->sh.real_size);
                 if(ret < 0) {
                     SERR("write: %m\n");
@@ -603,8 +659,10 @@ int main(int argc, char *argv[])
 
             if(is_broad_cast_mac(p_packet->packet.eth.ether_dhost) || 
                 (cache_dst = lookup_cache(p_packet->packet.eth.ether_dhost)) == NULL){
+                SDBG("broadcast_raw_packet\n", ret);
                 broadcast_raw_packet(p_packet, sock_fd);
             } else {
+                SDBG("send_raw_packet\n", ret);
                 send_raw_packet(p_packet, cache_dst, sock_fd);
             }
           }
@@ -612,7 +670,7 @@ int main(int argc, char *argv[])
           SERR("select: %m\n");
           exit(1);
         } else {
-          //SDBG("no data to process, sleep\n");
+          clear_cache();
         }
     }
 

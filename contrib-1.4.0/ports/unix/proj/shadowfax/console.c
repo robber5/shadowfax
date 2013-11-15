@@ -53,7 +53,6 @@ static void console_close(struct console_state *state)
         sfifo_close(&state->res);
         sfifo_close(&state->req);
         free(state);
-        sys_sem_signal(&console_sem);
     }
 }
 
@@ -66,17 +65,22 @@ static void console_msgerr(void *arg, err_t err)
     console_close(state);
 }
 
+
 static err_t console_send_data(struct tcp_pcb *pcb, struct console_state * state)
 {
     int len;
     err_t err;
     char buffer[4096];
 
-    if(pcb == NULL || state == NULL)
+    if(pcb == NULL || state == NULL) {
+        SDBG("console_send_data pcb or state is NULL\n");
         return ERR_OK;
+    }
 
-	if (pcb->state > ESTABLISHED)
+	if (pcb->state > ESTABLISHED) {
+        SDBG("pcb->state > ESTABLISHED\n");
 		return ERR_OK;
+    }
 
     len = sfifo_used(&state->res);
 
@@ -142,6 +146,7 @@ static int process_cmd(struct console_state *state)
         return 0;
 
     if(!strcmp(argv[0], "exit")) {
+        SDBG("cmd is %s\n", argv[0]);
         return -1;
     }
 
@@ -161,7 +166,7 @@ static err_t console_msgpoll(void *arg, struct tcp_pcb *pcb)
     int to_read, len, i;
 
 	if (pcb->state != ESTABLISHED) {
-        /*dbg_printf("console_msgpoll: pcb->state %d != ESTABLISHED\n", pcb->state);*/
+        SDBG("pcb->state != ESTABLISHED\n");
         console_close(state);
 		return ERR_OK;
     }
@@ -194,6 +199,7 @@ static err_t console_msgpoll(void *arg, struct tcp_pcb *pcb)
     if(state->command[i] == '\n' && state->command_len > 0) {
         state->command[i] = 0;
         if(process_cmd(state)<0) {
+            SDBG("process_cmd exit\n");
             console_close(state);
             return ERR_OK;
         }
@@ -203,6 +209,7 @@ static err_t console_msgpoll(void *arg, struct tcp_pcb *pcb)
 
 
     if(ERR_OK != console_send_data(pcb, state)) {
+        SDBG("console_send_data fail\n");
         console_close(state);
         return ERR_OK;
     }
@@ -249,6 +256,13 @@ static err_t console_msgrecv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err
 static int console_initilize(struct console_state *state, struct tcp_pcb *pcb)
 {
 	/* Initialize the structure. */
+
+    if(NULL == state) {
+        goto fail;
+    }
+
+    memset(state, 0, sizeof(struct console_state));
+
 	state->pcb = pcb;
 
     if(sfifo_init(&state->res, CONSOLE_MAX_RES_BUFFER))
@@ -280,43 +294,105 @@ fail:
 }
 
 
-static err_t console_connected(void *arg, struct tcp_pcb *pcb, err_t err)
+static err_t console_msgaccept(void *arg, struct tcp_pcb *pcb, err_t err)
 {
-    struct console_state *state = arg;
+	struct console_state *state = arg;
 
+    LWIP_UNUSED_ARG(err);
+    LWIP_UNUSED_ARG(arg);
+
+    SDBG("console_msgaccept called\n");
+
+    state = malloc(sizeof(struct console_state));
+	if (state == NULL) {
+		SERR("console_msgaccept: Out of memory\n");
+		goto fail;
+	}
+	/* Allocate memory for the structure that holds the state of the
+	   connection. */
+    if(console_initilize(state, pcb) < 0) {
+        SERR("console_connected: console_init failed\n");
+        goto fail;
+    }
+
+    write_promote(&state->res);
+
+	return ERR_OK;
+fail:
+    if(NULL != state) {
+        console_close(state);
+        state = NULL;
+    }
+    return ERR_CLSD;
+}
+
+static int start_console(void)
+{
+    err_t err;
+    struct tcp_pcb *listen_pcb, *pcb;
+
+    listen_pcb = tcp_new();
+
+    if((err = tcp_bind(listen_pcb, IP_ADDR_ANY, CONSOLE_LISTEN_PORT)) != ERR_OK) {
+        tcp_close(listen_pcb);
+        listen_pcb = NULL;
+        SERR("console: tcp_bind error\n");
+        return -1;
+    }
+
+	pcb = tcp_listen(listen_pcb);
+    if(NULL == pcb) {
+        tcp_close(listen_pcb);
+        listen_pcb = NULL;
+        SERR("console: tcp_listen error\n");
+        return -1;
+    }
+    listen_pcb = pcb;
+
+	tcp_accept(listen_pcb, console_msgaccept);
+
+    return 0;
+
+}
+
+static err_t probe_connected(void *arg, struct tcp_pcb *pcb, err_t err)
+{
+    LWIP_UNUSED_ARG(arg);
     LWIP_UNUSED_ARG(err);
 
     /* if connect error, msg_err called */
 
-    SDBG("console_connected called\n");
+    SDBG("probe_connected called\n");
 
-    if(console_initilize(state, pcb) < 0) {
-        SERR("console_connected: console_init failed\n");
-        console_close(state);
-        state = NULL;
-    }
-
-    write_promote(&state->res);
-    
+    tcp_arg(pcb, NULL);
+    tcp_err(pcb, NULL);
+    tcp_close(pcb); 
+    sys_sem_signal(&console_sem);
     return ERR_OK;
 }
+
+static void probe_msgerr(void *arg, err_t err)
+{
+    LWIP_UNUSED_ARG(arg);
+    LWIP_UNUSED_ARG(err);
+    SDBG("probe_msgerr called %d\n", err);
+    sys_sem_signal(&console_sem);
+}
+
 
 static void console_thread(void *arg) 
 {
 	struct tcp_pcb *pcb;
-    struct console_state *state;
     ip_addr_t remote_addr;
     struct netif * p_netif = NULL;
     err_t err;
 
     LWIP_UNUSED_ARG(arg);
 
-    //ipaddr_aton("192.168.0.1", &remote_addr);
-
     sys_sem_new(&console_sem, 0);
 
     while(1) {
-        usleep(CONSOLE_CONNECT_INTERVAL * 1000);
+        usleep(CONSOLE_PROBE_INTERVAL * 1000);
 
         /* find gw */
         p_netif = netif_find((char *)"ud0");
@@ -327,33 +403,18 @@ static void console_thread(void *arg)
 
         pcb = tcp_new();
 
-        state = malloc(sizeof(struct console_state));
-
-        if (state == NULL) {
-            SERR("console_thread: Out of memory\n");
-            return;
-        }
-        memset(state, 0, sizeof(struct console_state));
-
-        state->pcb = pcb;
-
-        tcp_arg(pcb, state);
-        tcp_err(pcb, console_msgerr);
-        SDBG("try to contact master on %"U16_F".%"U16_F".%"U16_F".%"U16_F"\n", 
+        tcp_arg(pcb, NULL);
+        tcp_err(pcb, probe_msgerr);
+        SDBG("try to probe master on %"U16_F".%"U16_F".%"U16_F".%"U16_F"\n", 
             ip4_addr1_16(&remote_addr), ip4_addr2_16(&remote_addr),ip4_addr3_16(&remote_addr),ip4_addr4_16(&remote_addr));
-        if((err = tcp_connect(pcb, &remote_addr, CONSOLE_REVERSE_PORT, console_connected)) != ERR_OK) {
+        if((err = tcp_connect(pcb, &remote_addr, CONSOLE_PROBE_PORT, probe_connected)) != ERR_OK) {
             SERR("tcp_connect error %d\n", err);
-
             tcp_arg(pcb, NULL);
-
             tcp_err(pcb, NULL);
-
             tcp_close(pcb);
-            free(state);
-           
             continue;
         }
-        SDBG("wait on console quit\n");
+        SDBG("wait on probe quit\n");
         sys_sem_wait(&console_sem);
     }
 }
@@ -413,5 +474,6 @@ void console_init(void)
     reg_cmd(do_cmd_exit, "exit", "exit console\n");
     reg_cmd(do_cmd_ifconfig, "ifconfig", "show all interface\n");
     reg_cmd(do_cmd_version, "version", "show host version\n");
+    start_console();
     sys_thread_new("console_thread", console_thread, NULL, DEFAULT_THREAD_STACKSIZE, DEFAULT_THREAD_PRIO);
 }

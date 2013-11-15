@@ -1,3 +1,4 @@
+#include <sys/time.h>
 #include <time.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -10,18 +11,19 @@ void _print_log(int level, const char * file, int line, const char * fmt, ...)
 
     va_list ap;
     char buffer[4096];
-    time_t t;
     struct tm *tmp;
     size_t len = 0;
     const char * log_str = "ERR ";
+    struct timeval tv;
 
     if(shadow_quiet)
         return;
 
-    t = time(NULL);
-    tmp = localtime(&t);
-    len += strftime(buffer, sizeof(buffer), "[%Y-%m-%d %H:%M:%S]", tmp);
-    
+    gettimeofday(&tv, NULL);
+
+    tmp = localtime(&tv.tv_sec);
+    len += strftime(buffer, sizeof(buffer), "[%Y-%m-%d %H:%M:%S", tmp);
+    len += snprintf(buffer + len, sizeof(buffer) - len, ".%07lu]", tv.tv_usec);
     switch(level) {
         case SHADOW_LOG_ERR:
             log_str = "ERR"; break;

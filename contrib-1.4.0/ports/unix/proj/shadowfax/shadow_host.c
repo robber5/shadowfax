@@ -168,7 +168,7 @@ static void usage(void)
   printf("options:\n");
   for (i = 0; i < sizeof(longopts)/sizeof(struct option); i++) {
     if(longopts[i].name) {
-        printf("-%c --%s : %s\n",longopts[i].val, longopts[i].name, opt_descs[i]);
+        printf("    -%c --%s : %s\n",longopts[i].val, longopts[i].name, opt_descs[i]);
     }
   }
 }
