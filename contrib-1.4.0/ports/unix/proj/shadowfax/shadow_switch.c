@@ -35,7 +35,7 @@
 #define CACHE_TTL_SEC            60
 #define DEFAULT_TAP_ADDRESS "192.168.0.1"
 #define DEFAULT_TAP_MASK "255.255.255.0"
-#define DEFAULT_PID_FILE "/var/run/shadow-cli.pid"
+#define DEFAULT_PID_FILE "/var/run/shadow-switch.pid"
 
 static int sock_fd;
 static int tap_fd;
@@ -246,10 +246,12 @@ static int is_broad_cast_mac(uint8_t * mac)
 
 static int wrap_packet(struct wrap_packet_t * packet, struct addr_cache_t * cache)
 {
+    int real_size = 0;
     memcpy(&packet->dup_eth, &packet->packet.eth, sizeof(packet->dup_eth));
     s_compress(&packet->sh);
+    real_size = packet->sh.comp_size;
     encrypt(cache->enc_handle, (byte_t *)&packet->sh, sizeof(struct s_compress_header) + packet->sh.comp_size);
-    return 0;
+    return real_size;
 }
 
 static int dewrap_packet(struct wrap_packet_t * packet, struct addr_cache_t * cache, size_t len)
@@ -281,8 +283,12 @@ static int dewrap_packet(struct wrap_packet_t * packet, struct addr_cache_t * ca
 
 static int send_raw_packet(struct wrap_packet_t * packet, struct addr_cache_t * cache, int fd)
 {
-    if(wrap_packet(packet, cache) < 0) return -1;
-    return sendto(fd, packet, packet->sh.comp_size + WRAP_HEADER_SIZE, MSG_NOSIGNAL, (struct sockaddr *)&cache->dst, sizeof(cache->dst));
+    int ret;
+    int size;
+    if((size = wrap_packet(packet, cache)) < 0) return -1;
+    ret = sendto(fd, packet, size + WRAP_HEADER_SIZE, MSG_NOSIGNAL, (struct sockaddr *)&cache->dst, sizeof(cache->dst));
+    SDBG("send_raw_packet size %d + %d return %d\n", size , WRAP_HEADER_SIZE, ret);
+    return ret;
 }
 
 static int broadcast_raw_packet(struct wrap_packet_t * packet, int fd)

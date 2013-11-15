@@ -256,14 +256,11 @@ main(int argc, char **argv)
   debug_flags = LWIP_DBG_OFF;
   shadow_quiet = 1;
   
-  while ((ch = getopt_long(argc, argv, "Dvhgd:i:m:b:l:p:", longopts, NULL)) != -1) {
+  while ((ch = getopt_long(argc, argv, "vhg:i:m:db:l:Dp:", longopts, NULL)) != -1) {
     switch (ch) {
       case 'v':
         /*debug_flags |= (LWIP_DBG_ON|LWIP_DBG_TRACE|LWIP_DBG_STATE|LWIP_DBG_FRESH|LWIP_DBG_HALT);*/
         shadow_quiet = 0;
-        break;
-      case 'd':
-        use_dhcp = 1;
         break;
       case 'h':
         usage();
@@ -277,6 +274,9 @@ main(int argc, char **argv)
         break;
       case 'm':
         inet_aton(optarg, &shadow_netmask);
+        break;
+      case 'd':
+        use_dhcp = 1;
         break;
       case 'b':
         inet_aton(optarg, &udpif_state.local_ip);

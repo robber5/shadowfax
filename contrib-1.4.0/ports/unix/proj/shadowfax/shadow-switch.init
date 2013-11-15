@@ -38,7 +38,7 @@ runlevel=$(set -- $(runlevel); eval "echo \$$#" )
 
 start()
 {
-        [ -x $shadow ] || exit 5
+        [ -x $SHADOW_SWITCH ] || exit 5
         echo -n $"Starting $prog: "
         daemon $SHADOW_SWITCH ${OPTIONS} && success || failure
         RETVAL=$?
