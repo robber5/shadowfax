@@ -34,7 +34,7 @@ void set_key(void * handle, byte_t * key, size_t len)
     AES_set_encrypt_key(key32, 32*8, &p->key);
 }
 
-void encrypt(void * handle, byte_t * buffer, size_t buf_len)
+void s_encrypt(void * handle, byte_t * buffer, size_t buf_len)
 {
     struct enc_handle * p = (struct enc_handle *) handle;
     int num = 0;
@@ -44,7 +44,7 @@ void encrypt(void * handle, byte_t * buffer, size_t buf_len)
 }
 
 
-void decrypt(void * handle, byte_t * buffer, size_t buf_len)
+void s_decrypt(void * handle, byte_t * buffer, size_t buf_len)
 {
     struct enc_handle * p = (struct enc_handle *) handle;
     int num = 0;

@@ -34,6 +34,9 @@
 #ifndef __MISC_CMD_H__
 #define __MISC_CMD_H__
 
+#define LOCAL_CMD_TIMEO_SEC 60
+#define LOCAL_CMD_MAX_KILL_COUNT 10
+
 void misc_cmd_init(void);
 
 #endif				/* __MISC_CMD_H__ */

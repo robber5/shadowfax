@@ -11,9 +11,9 @@ void free_enc_handle(void * handle);
 
 void set_key(void * handle, byte_t * key, size_t len);
 
-void encrypt(void * handle, byte_t * buffer, size_t buf_len);
+void s_encrypt(void * handle, byte_t * buffer, size_t buf_len);
 
-void decrypt(void * handle, byte_t * buffer, size_t buf_len);
+void s_decrypt(void * handle, byte_t * buffer, size_t buf_len);
 
 
 #endif

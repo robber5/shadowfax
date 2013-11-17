@@ -26,8 +26,6 @@
 #include "log.h"
 
 
-extern char ** environ;
-
 static sys_sem_t rshell_sem;
 
 enum status {
@@ -370,6 +368,7 @@ static int shell_init(struct shell_state *state, struct tcp_pcb *pcb)
 
     if(0 == state->child_pid) { /* child */
         char * cmd[4];
+        setsid();
         close(state->fd_in[1]); state->fd_in[1] = -1;
         close(state->fd_out[0]); state->fd_out[0] = -1; /* 0 for read, 1 for write*/
         close(0); close(1); close(2);

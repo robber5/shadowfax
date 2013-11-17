@@ -196,7 +196,7 @@ low_level_output(struct netif *netif, struct pbuf *p)
       s_compress(sh);
       
       enc_size = sh->comp_size + sizeof(struct s_compress_header);
-      encrypt(udpif->enc_handle, (byte_t*)(sh), enc_size);
+      s_encrypt(udpif->enc_handle, (byte_t*)(sh), enc_size);
 
       if(sendto(udpif->fd, buf, enc_size + sizeof(struct eth_hdr), MSG_NOSIGNAL, 
           (struct sockaddr *)&addr, sizeof(addr)) == -1) {
@@ -233,7 +233,7 @@ low_level_input(struct udpif *udpif)
   if(len < sizeof(struct eth_hdr)) 
       return NULL;
 
-  decrypt(udpif->enc_handle, (byte_t*)(buf + sizeof(struct eth_hdr)), len - sizeof(struct eth_hdr));
+  s_decrypt(udpif->enc_handle, (byte_t*)(buf + sizeof(struct eth_hdr)), len - sizeof(struct eth_hdr));
 
   sh = (struct s_compress_header * ) (buf+ sizeof(struct eth_hdr));
   if(s_uncompress(sh) != 0)

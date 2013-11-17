@@ -27,8 +27,6 @@
 #include "log.h"
 #include "worker_thread.h"
 
-extern char ** environ;
-
 static sys_sem_t rforward_sem;
 
 enum status {

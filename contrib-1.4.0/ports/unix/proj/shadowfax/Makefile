@@ -39,7 +39,7 @@ CFLAGS=-g -Wall -D$(ARCH) -DIPv4 -DLWIP_DEBUG -Werror \
 	-Wparentheses -Wsequence-point -Wswitch-default \
 	-Wextra -Wundef -Wshadow -Wpointer-arith -Wbad-function-cast \
 	-Wwrite-strings -Wold-style-definition \
-	-Wmissing-prototypes -Wredundant-decls -Wnested-externs
+	-Wmissing-prototypes -Wredundant-decls -Wnested-externs -D_GNU_SOURCE
 # not used for now but interesting:
 # -Wpacked
 # -Wunreachable-code

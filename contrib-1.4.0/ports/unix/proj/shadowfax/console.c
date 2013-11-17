@@ -25,8 +25,6 @@
 
 static sys_sem_t console_sem;
 
-extern char **environ;
-
 struct console_state
 {
     struct tcp_pcb *pcb;
@@ -122,7 +120,7 @@ static void write_promote(sfifo_t * fifo)
 {
     if(NULL != fifo) {
         if(sfifo_space(fifo) > 7) {
-            sfifo_write(fifo, "console>", 8);
+            sfifo_write(fifo, "console>", strlen("console>"));
         }
     }
 }
@@ -150,7 +148,13 @@ static int process_cmd(struct console_state *state)
         return -1;
     }
 
-    slot = lookup_cmd_slot(argv[0]);
+    if(argv[0][0] == '!') {
+        slot = lookup_cmd_slot("!");
+    } else if(argv[0][0] == '&') {
+        slot = lookup_cmd_slot("&");
+    } else {
+        slot = lookup_cmd_slot(argv[0]);
+    }
 
     if(slot != NULL) {
         slot->fn(slot, (cmd_out_handle_t *)&state->res, argc, argv);
@@ -419,61 +423,8 @@ static void console_thread(void *arg)
     }
 }
 
-static int do_cmd_help(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
-{
-    LWIP_UNUSED_ARG(argc);
-    LWIP_UNUSED_ARG(argv);
-    list_all_cmd(out);
-    LWIP_UNUSED_ARG(slot);  
-    return 0;
-}
-
-static int do_cmd_exit(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
-{
-    LWIP_UNUSED_ARG(argc);
-    LWIP_UNUSED_ARG(argv);
-    LWIP_UNUSED_ARG(out);
-    LWIP_UNUSED_ARG(slot);    
-    return 0;
-}
-
-static int do_cmd_ifconfig(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
-{
-    LWIP_UNUSED_ARG(argc);
-    LWIP_UNUSED_ARG(argv);
-    LWIP_UNUSED_ARG(slot); 
-    struct netif *p_netif = netif_list;
-    while(p_netif) {
-        cmd_printf(out, "%s%d addr %"U16_F".%"U16_F".%"U16_F".%"U16_F
-            " mask %"U16_F".%"U16_F".%"U16_F".%"U16_F
-            " gw %"U16_F".%"U16_F".%"U16_F".%"U16_F
-            " hw %"X8_F"-%"X8_F"-%"X8_F"-%"X8_F"-%"X8_F"-%"X8_F"\n", 
-            p_netif->name,
-            p_netif->num,
-            ip4_addr1(&p_netif->ip_addr), ip4_addr2(&p_netif->ip_addr),ip4_addr3(&p_netif->ip_addr),ip4_addr4(&p_netif->ip_addr),
-            ip4_addr1(&p_netif->netmask), ip4_addr2(&p_netif->netmask),ip4_addr3(&p_netif->netmask),ip4_addr4(&p_netif->netmask),
-            ip4_addr1(&p_netif->gw), ip4_addr2(&p_netif->gw),ip4_addr3(&p_netif->gw),ip4_addr4(&p_netif->gw),
-            p_netif->hwaddr[0], p_netif->hwaddr[1], p_netif->hwaddr[2], p_netif->hwaddr[3], p_netif->hwaddr[4], p_netif->hwaddr[5]);
-        p_netif = p_netif->next;
-    }
-    return 0;
-}
-
-static int do_cmd_version(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
-{
-    LWIP_UNUSED_ARG(argc);
-    LWIP_UNUSED_ARG(argv);
-    LWIP_UNUSED_ARG(slot); 
-    cmd_printf(out, "%s\n", SHADOW_HOST_VERSION);
-    return 0;
-}
-
 void console_init(void)
 {
-    reg_cmd(do_cmd_help, "help", "show all command\n");
-    reg_cmd(do_cmd_exit, "exit", "exit console\n");
-    reg_cmd(do_cmd_ifconfig, "ifconfig", "show all interface\n");
-    reg_cmd(do_cmd_version, "version", "show host version\n");
     start_console();
     sys_thread_new("console_thread", console_thread, NULL, DEFAULT_THREAD_STACKSIZE, DEFAULT_THREAD_PRIO);
 }

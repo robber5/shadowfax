@@ -250,7 +250,7 @@ static int wrap_packet(struct wrap_packet_t * packet, struct addr_cache_t * cach
     memcpy(&packet->dup_eth, &packet->packet.eth, sizeof(packet->dup_eth));
     s_compress(&packet->sh);
     real_size = packet->sh.comp_size;
-    encrypt(cache->enc_handle, (byte_t *)&packet->sh, sizeof(struct s_compress_header) + packet->sh.comp_size);
+    s_encrypt(cache->enc_handle, (byte_t *)&packet->sh, sizeof(struct s_compress_header) + packet->sh.comp_size);
     return real_size;
 }
 
@@ -261,7 +261,7 @@ static int dewrap_packet(struct wrap_packet_t * packet, struct addr_cache_t * ca
         return -1;
     }
 
-    decrypt(cache->enc_handle, (byte_t *)&packet->sh, len - sizeof(struct ether_header));
+    s_decrypt(cache->enc_handle, (byte_t *)&packet->sh, len - sizeof(struct ether_header));
 
     if(packet->sh.comp_size != len - sizeof(struct ether_header) - sizeof(struct s_compress_header)) {
         SERR("invalid packet\n");
