@@ -545,13 +545,13 @@ static int do_start_shell(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, c
             shell_port = atoi(optarg);
             break;
         default:
-            cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+            cmd_usage(slot, out);
             return -1;
         }
     }
 
     if(shell_port <= 0) {
-        cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+        cmd_usage(slot, out);
         return -1;
     }
     
@@ -577,7 +577,7 @@ static int do_start_shell(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, c
 	tcp_accept(shell_pcb, shell_msgaccept);
 
     shell_status = RUNNING;
-    cmd_printf(out, "service started\n");
+    cmd_printf(out, "shell service started\n");
     return 0;
 }
 
@@ -600,7 +600,7 @@ static int do_stop_shell(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, ch
         shell_pcb = NULL;
     }
 
-    cmd_printf(out, "stop command issued, use get_shell_status to watch status\n");
+    cmd_printf(out, "stop command issued, use shell status to watch status\n");
 
     return 0;
 }
@@ -667,13 +667,13 @@ static int do_start_rshell(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, 
             cmd_printf(out, "invalid ip addr %s\n", optarg);
             break;
         default:
-            cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+            cmd_usage(slot, out);
             return -1;
         }
     }
 
     if(rshell_port <= 0 || rshell_ip.addr == INADDR_ANY) {
-        cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+        cmd_usage(slot, out);
         return -1;
     }
     
@@ -686,7 +686,7 @@ static int do_start_rshell(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, 
         return -1;
     }
     rshell_status = RUNNING;
-    cmd_printf(out, "service started\n");
+    cmd_printf(out, "rshell service started\n");
     return 0;
 }
 
@@ -706,7 +706,7 @@ static int do_stop_rshell(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, c
     sys_sem_signal(&rshell_sem);
     rshell_pcb = NULL;
 
-    cmd_printf(out, "stop command issued, use get_rshell_status to watch status\n");
+    cmd_printf(out, "stop command issued, use rshell status to watch status\n");
 
     return 0;
 }
@@ -721,21 +721,66 @@ static int do_get_rshell_status(cmd_slot_t * slot, cmd_out_handle_t * out, int a
 
     inet_ntoa_r(rshell_ip, ip_str, sizeof(ip_str));
 
-    cmd_printf(out, "shell status: %s, ip is %s, port is %d, session count %d\n",
+    cmd_printf(out, "rshell status: %s, ip is %s, port is %d, session count %d\n",
         status_str[rshell_status], ip_str,
         rshell_port, rshell_session_cnt);
     return 0;
+}
+
+static int do_cmd_shell(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
+{
+    int ret = -1;
+    if(argc < 2) {
+        cmd_usage(slot, out);
+        return ret;
+    }
+
+    argc --;
+    argv ++;
+
+    if(strcmp(argv[0], "start") == 0) {
+        ret = do_start_shell(slot, out, argc, argv);
+    } else if(strcmp(argv[0], "stop") == 0) {
+        ret = do_stop_shell(slot, out, argc, argv);
+    } else {
+        ret = do_get_shell_status(slot, out, argc, argv);
+    }
+
+    return ret;
+}
+
+static int do_cmd_rshell(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
+{
+    int ret = -1;
+    if(argc < 2) {
+        cmd_usage(slot, out);
+        return ret;
+    }
+
+    argc --;
+    argv ++;
+
+    if(strcmp(argv[0], "start") == 0) {
+        ret = do_start_rshell(slot, out, argc, argv);
+    } else if(strcmp(argv[0], "stop") == 0) {
+        ret = do_stop_rshell(slot, out, argc, argv);
+    } else {
+        ret = do_get_rshell_status(slot, out, argc, argv);
+    }
+
+    return ret;
 }
 
 void shell_service_init(void)
 {
     sys_sem_new(&rshell_sem, 0);
 
-    reg_cmd(do_start_shell, "start_shell", "start passive shell service, usage: start_shell -b [bind port]\n");
-    reg_cmd(do_stop_shell, "stop_shell", "stop passive shell service\n");
-    reg_cmd(do_get_shell_status, "get_shell_status", "get passive shell service status\n");
-
-    reg_cmd(do_start_rshell, "start_rshell", "start reverse shell service, usage: start_rshell -h [peerip] -c [port] -i [interval_ms]\n");
-    reg_cmd(do_stop_rshell, "stop_rshell", "stop reverse shell service\n");
-    reg_cmd(do_get_rshell_status, "get_rshell_status", "get reverse shell service status\n");
+    reg_cmd(do_cmd_shell, "shell", "usage:\n"
+                                    "    shell start <-b bind port>\n"
+                                    "    shell stop\n"
+                                    "    shell status\n");
+    reg_cmd(do_cmd_rshell, "rshell", "usage:\n"
+                                    "    rshell start [-h connect back ip] <-c connect back port> <-i interval_ms>\n"
+                                    "    rshell stop\n"
+                                    "    rshell status\n");
 }

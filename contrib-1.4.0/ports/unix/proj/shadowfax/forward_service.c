@@ -463,7 +463,7 @@ static int do_start_forward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc,
             forward_port = atoi(optarg);
             break;
         default:
-            cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+            cmd_usage(slot, out);
             return -1;
         }
     }
@@ -471,7 +471,7 @@ static int do_start_forward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc,
     argv += optind;
 
     if(argc != 2) {
-        cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+        cmd_usage(slot, out);
         return -1;
     }
 
@@ -484,7 +484,7 @@ static int do_start_forward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc,
     SDBG("target_host %s target_port %d\n", target_host, target_port);
 
     if(forward_port <= 0) {
-        cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+        cmd_usage(slot, out);
         return -1;
     }
     
@@ -510,7 +510,7 @@ static int do_start_forward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc,
 	tcp_accept(forward_pcb, forward_msgaccept);
 
     forward_status = RUNNING;
-    cmd_printf(out, "service started\n");
+    cmd_printf(out, "forward service started\n");
     return 0;
 }
 
@@ -532,7 +532,7 @@ static int do_stop_forward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, 
         forward_pcb = NULL;
     }
 
-    cmd_printf(out, "stop command issued, use get_forward_status to watch status\n");
+    cmd_printf(out, "stop command issued, use forward status to watch status\n");
 
     return 0;
 }
@@ -581,7 +581,7 @@ static int do_start_rforward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc
             cmd_printf(out, "invalid ip addr %s\n", optarg);
             break;
         default:
-            cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+            cmd_usage(slot, out);
             return -1;
         }
     }
@@ -590,7 +590,7 @@ static int do_start_rforward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc
     argv += optind;
 
     if(argc != 2) {
-        cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+        cmd_usage(slot, out);
         return -1;
     }
 
@@ -604,7 +604,7 @@ static int do_start_rforward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc
     SDBG("target_host %s target_port %d\n", target_host, target_port);
 
     if(rforward_port <= 0 || rforward_ip.addr == INADDR_ANY) {
-        cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
+        cmd_usage(slot, out);
         return -1;
     }
     
@@ -617,7 +617,7 @@ static int do_start_rforward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc
         return -1;
     }
     rforward_status = RUNNING;
-    cmd_printf(out, "service started\n");
+    cmd_printf(out, "rforward service started\n");
     return 0;
 }
 
@@ -637,7 +637,7 @@ static int do_stop_rforward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc,
     sys_sem_signal(&rforward_sem);
     rforward_pcb = NULL;
 
-    cmd_printf(out, "stop command issued, use get_rforward_status to watch status\n");
+    cmd_printf(out, "stop command issued, use rforward status to watch status\n");
 
     return 0;
 }
@@ -658,15 +658,61 @@ static int do_get_rforward_status(cmd_slot_t * slot, cmd_out_handle_t * out, int
     return 0;
 }
 
+static int do_cmd_forward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
+{
+    int ret = -1;
+    if(argc < 2) {
+        cmd_usage(slot, out);
+        return ret;
+    }
+
+    argc --;
+    argv ++;
+
+    if(strcmp(argv[0], "start") == 0) {
+        ret = do_start_forward(slot, out, argc, argv);
+    } else if(strcmp(argv[0], "stop") == 0) {
+        ret = do_stop_forward(slot, out, argc, argv);
+    } else {
+        ret = do_get_forward_status(slot, out, argc, argv);
+    }
+
+    return ret;
+}
+
+static int do_cmd_rforward(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
+{
+    int ret = -1;
+    if(argc < 2) {
+        cmd_usage(slot, out);
+        return ret;
+    }
+
+    argc --;
+    argv ++;
+
+    if(strcmp(argv[0], "start") == 0) {
+        ret = do_start_rforward(slot, out, argc, argv);
+    } else if(strcmp(argv[0], "stop") == 0) {
+        ret = do_stop_rforward(slot, out, argc, argv);
+    } else {
+        ret = do_get_rforward_status(slot, out, argc, argv);
+    }
+
+    return ret;
+}
+
 void forward_service_init(void)
 {
     sys_sem_new(&rforward_sem, 0);
 
-    reg_cmd(do_start_forward, "start_forward", "start passive tcp port forward service, usage: start_forward -b [bind port] host port\n");
-    reg_cmd(do_stop_forward, "stop_forward", "stop passive tcp port forward service\n");
-    reg_cmd(do_get_forward_status, "get_forward_status", "get passive tcp port forward service status\n");
+    reg_cmd(do_cmd_forward, "forward", "usage: \n"
+                                       "    forward start <-b bind port> [target ip] [target port]\n"
+                                       "    forward stop\n"
+                                       "    forward status\n");
 
-    reg_cmd(do_start_rforward, "start_rforward", "start reverse tcp port forward service, usage: start_rforward -h [peerip] -c [port] -i [interval_ms] host port\n");
-    reg_cmd(do_stop_rforward, "stop_rforward", "stop reverse tcp port forward service\n");
-    reg_cmd(do_get_rforward_status, "get_rforward_status", "get reverse tcp port forward service status\n");
+    reg_cmd(do_cmd_rforward, "rforward", "usage: \n"
+                                       "    rforward start [-h connect back ip] <-c connect back port> <-i interval_ms> [target ip] [target port]\n"
+                                       "    rforward stop\n"
+                                       "    rforward status\n");
 }

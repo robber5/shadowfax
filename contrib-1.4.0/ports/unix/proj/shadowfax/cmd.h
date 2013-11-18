@@ -58,4 +58,6 @@ int cmd_printf(cmd_out_handle_t * handle, const char *format, ...);
 
 void list_all_cmd(cmd_out_handle_t * handle);
 
+void cmd_usage(struct cmd_slot * slot, cmd_out_handle_t * out);
+
 #endif /* __SYSTEM_CMD_INTERFACE_H__ */

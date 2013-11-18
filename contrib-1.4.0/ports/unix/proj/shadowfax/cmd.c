@@ -54,7 +54,14 @@ void list_all_cmd(cmd_out_handle_t * handle)
 {
     cmd_slot_t * slot = slot_head;
     while(slot != NULL) {
-        cmd_printf(handle, "%s: %s", slot->cmd, slot->info ? slot->info : "");
+        cmd_printf(handle, "%s\n", slot->cmd);
         slot = slot->next;
     }
 }
+
+
+void cmd_usage(struct cmd_slot * slot, cmd_out_handle_t * out)
+{
+    cmd_printf(out, "%s: %s", slot->cmd, slot->info ? slot->info : "");
+}
+

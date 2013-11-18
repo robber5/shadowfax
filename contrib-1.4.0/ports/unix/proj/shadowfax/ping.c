@@ -268,6 +268,6 @@ static int do_ping(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** 
 void
 ping_init(void)
 {
-    reg_cmd(do_ping, "ping", "usage: ping [-n count] [-t timeout_ms] host_ip\n");
+    reg_cmd(do_ping, "ping", "usage: ping <-n count> <-t timeout_ms> [target ip]\n");
 }
 

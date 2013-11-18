@@ -50,6 +50,7 @@ static int do_cmd_netstat(struct cmd_slot * slot, cmd_out_handle_t * out, int ar
     return 0;
 }
 
+/*
 static int do_cmd_close_pcb(struct cmd_slot * slot, cmd_out_handle_t * out, int argc, char ** argv)
 {
     LWIP_UNUSED_ARG(slot);
@@ -60,13 +61,25 @@ static int do_cmd_close_pcb(struct cmd_slot * slot, cmd_out_handle_t * out, int 
     cmd_printf(out, "not impl yet!\n");
     return -1;
 }
+*/
 
 static int do_cmd_help(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
 {
+    cmd_slot_t * pslot = NULL;
     LWIP_UNUSED_ARG(argc);
     LWIP_UNUSED_ARG(argv);
-    list_all_cmd(out);
-    LWIP_UNUSED_ARG(slot);  
+    LWIP_UNUSED_ARG(slot);
+    if(argc == 1) {
+        list_all_cmd(out);
+    } else {
+        pslot = lookup_cmd_slot(argv[1]);
+        if(NULL != pslot) {
+            cmd_usage(pslot, out);
+        } else {
+            cmd_printf(out, "unknown cmd %s\n", argv[1]);
+        }
+    }
+      
     return 0;
 }
 
@@ -391,8 +404,8 @@ static int do_cmd_local(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, cha
 void misc_cmd_init(void)
 {
     reg_cmd(do_cmd_netstat, "netstat", "show all socket\n");
-    reg_cmd(do_cmd_close_pcb, "close_tcp", "close tcp socket\n");
-    reg_cmd(do_cmd_help, "help", "show all command\n");
+//    reg_cmd(do_cmd_close_pcb, "close_tcp", "close tcp socket\n");
+    reg_cmd(do_cmd_help, "help", "show help, use help 'cmd' to get usage\n");
     reg_cmd(do_cmd_exit, "exit", "exit console\n");
     reg_cmd(do_cmd_ifconfig, "ifconfig", "show all interface\n");
     reg_cmd(do_cmd_version, "version", "show host version\n");

@@ -1113,10 +1113,8 @@ static void ftpd_msgerr(void *arg, err_t err)
 	SDBG("ftpd_msgerr: %s (%i) %p\n", lwip_strerr(err), err, arg);
 
     if(fsm) {
-        
         fsm->msgpcb = NULL; /* already closed! */
-    
-    ftpd_msgclose(fsm);
+        ftpd_msgclose(fsm);
     }
 }
 
@@ -1133,34 +1131,28 @@ static void ftpd_msgclose(struct ftpd_msgstate *fsm)
         tcp_arg(fsm->msgpcb, NULL);
         tcp_sent(fsm->msgpcb, NULL);
         tcp_recv(fsm->msgpcb, NULL); 
-        
         tcp_err(fsm->msgpcb, NULL);
-
         tcp_close(fsm->msgpcb);
-
         fsm->msgpcb = NULL;
-
     }
+
 	if (fsm->datafs) {
 		ftpd_dataclose(fsm->datafs);
-
         fsm->datafs = NULL;
-
     }
+
 	sfifo_close(&fsm->fifo);
 
     if(fsm->vfs != NULL) {
 	    vfs_closefs(fsm->vfs);
-
         fsm->vfs = NULL;
-
     }
+
 	if (fsm->renamefrom) {
 		free(fsm->renamefrom);
-
         fsm->renamefrom = NULL;
-
     }
+
     transfer_session_cnt --;
 
     if(transfer_session_cnt <= 0 && transfer_status == STOPPING) {
@@ -1308,20 +1300,12 @@ static int ftpd_msginit( struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
     fsm->msgpcb = pcb;
 	/* Initialize the structure. */
-	
+
     sfifo_init(&fsm->fifo, 2000);
-  
-
 	fsm->state = FTPD_IDLE;
-
-
     fsm->vfs = vfs_openfs();
- 
-
-	if (!fsm->vfs) {
-     
+	if (!fsm->vfs) {  
 		goto fail;
-
     }
 
 
@@ -1342,15 +1326,10 @@ static int ftpd_msginit( struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 
     tcp_sent(pcb, ftpd_msgsent);
     tcp_err(pcb, ftpd_msgerr);
-
-
     tcp_poll(pcb, ftpd_msgpoll, 1);
-       
-	
     return 0;
 
 fail:
-    
     return -1;
 
 }
@@ -1374,17 +1353,13 @@ static err_t ftpd_msgaccept(void *arg, struct tcp_pcb *pcb, err_t err)
 	memset(fsm, 0, sizeof(struct ftpd_msgstate));
 
     if(ftpd_msginit(pcb, fsm) < 0) {
-
         return ERR_OK;
-    
     }
     
 send_msg(fsm, msg220);
     return ERR_OK;
 fail:
-
     ftpd_msgclose(fsm);
-
     return ERR_OK;
 }
 
@@ -1393,79 +1368,47 @@ static int do_start_transfer(cmd_slot_t * slot, cmd_out_handle_t * out, int argc
 {
     
     int ch;
-    
     err_t err;
-    
     struct tcp_pcb *pcb;
-   
     optarg = NULL;
-    
     optind = 0;
 
-    
     transfer_port = TRANSFER_SERVICE_PORT;
-    
     port_from = TRANSFER_SERVICE_PASV_PORT_FROM;
-    
     port_to = TRANSFER_SERVICE_PASV_PORT_TO;
-
     
-    if(transfer_status != STOP ) {
-        
-        cmd_printf(out, "ftp service still running");
-        
+    if(transfer_status != STOP ) {   
+        cmd_printf(out, "ftp service still running");     
         return -1;
-    
     }
 
     
     while( (ch = getopt(argc, argv, "b:f:t:")) != -1) {
-        
         switch(ch) {
-        
             case 'b':
-            
                 transfer_port = atoi(optarg);
-
                 break;
-
             case 'f':
-
                 port_from = atoi(optarg);
-
                 break;
-        
              case 't':
-
                 port_to = atoi(optarg);
-
                 break;
-        
              default:
- 
-            cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
-
+             cmd_usage(slot, out);
              return -1;
-        
         }
-    
     }
-
     
     if(port_from > port_to) {
-        cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
-
+        cmd_usage(slot, out);
         return -1;
-
     }
 
 
     if(transfer_port <= 0) {
-
-        cmd_printf(out, slot->info == NULL ? slot->info : "sytex error\n");
-
+        cmd_usage(slot, out);
         return -1;
-    
     }
 
 
@@ -1473,37 +1416,25 @@ static int do_start_transfer(cmd_slot_t * slot, cmd_out_handle_t * out, int argc
 
     transfer_stop_flag = 0;
     if((err = tcp_bind(transfer_pcb, IP_ADDR_ANY, transfer_port)) != ERR_OK) {
-
         cmd_printf(out, "can not bind to port %d (%s)\n", transfer_port, lwip_strerr(err));
-
         tcp_close(transfer_pcb);
-
         transfer_pcb = NULL;
-
-       return -1;
-
+        return -1;
     }
-
 
 	pcb = tcp_listen(transfer_pcb);
 
     if(NULL == pcb) {
         cmd_printf(out, "can not set to listen state\n");
-
         tcp_close(transfer_pcb);
-
         transfer_pcb = NULL;
-
         return -1;
-
     }
 
     transfer_pcb = pcb;
     tcp_accept(transfer_pcb, ftpd_msgaccept);
     transfer_status = RUNNING;
-
-    cmd_printf(out, "service started\n");
-
+    cmd_printf(out, "ftp service started\n");
     return 0;
 }
 
@@ -1512,40 +1443,26 @@ static int do_start_transfer(cmd_slot_t * slot, cmd_out_handle_t * out, int argc
 static int do_stop_transfer(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
 
 {
-
     LWIP_UNUSED_ARG(slot);
-
     LWIP_UNUSED_ARG(argc);
-
     LWIP_UNUSED_ARG(argv);
 
-
-    
     if(transfer_session_cnt != 0) {
         transfer_status = STOPPING;
     } else {
-
         transfer_status = STOP;
-
     }
-
 
     transfer_stop_flag = 1;
 
- 
     if(NULL != transfer_pcb) {
         tcp_close(transfer_pcb);
-
         transfer_pcb = NULL;
-    
     }
-
     
-    cmd_printf(out, "stop command issued, use get_ftp_status to watch status\n");
-
+    cmd_printf(out, "stop command issued, use ftp status to watch status\n");
 
     return 0;
-
 }
         
 
@@ -1554,27 +1471,43 @@ static int do_get_transfer_status(cmd_slot_t * slot, cmd_out_handle_t * out, int
 
 {
     LWIP_UNUSED_ARG(slot);
-
     LWIP_UNUSED_ARG(argc);
-
     LWIP_UNUSED_ARG(argv);
-
-
-    cmd_printf(out, "shell status: %s, port is %d, session count %d\n", 
+    cmd_printf(out, "ftp status: %s, port is %d, session count %d\n", 
         status_str[transfer_status], transfer_port, transfer_session_cnt);
 
     return 0;
 
 }
 
-       
+static int do_cmd_ftp(cmd_slot_t * slot, cmd_out_handle_t * out, int argc, char ** argv)
+{
+    int ret = -1;
+    if(argc < 2) {
+        cmd_usage(slot, out);
+        return ret;
+    }
+
+    argc --;
+    argv ++;
+
+    if(strcmp(argv[0], "start") == 0) {
+        ret = do_start_transfer(slot, out, argc, argv);
+    } else if(strcmp(argv[0], "stop") == 0) {
+        ret = do_stop_transfer(slot, out, argc, argv);
+    } else {
+        ret = do_get_transfer_status(slot, out, argc, argv);
+    }
+
+    return ret;
+}
 
 void transfer_service_init(void)
 {
-    reg_cmd(do_start_transfer, "start_ftp", "start ftp service, usage: start_ftp -b [bind port] -f [pasv port from] -t [pasv port to]\n");
- 
-    reg_cmd(do_stop_transfer, "stop_ftp", "stop ftp service\n");
 
-    reg_cmd(do_get_transfer_status, "get_ftp_status", "get ftp service status\n");
+    reg_cmd(do_cmd_ftp, "ftp", "usage:\n"
+                               "    ftp start <-b bind port> <-f pasv port from> <-t pasv port to>\n"
+                               "    ftp stop\n"
+                               "    ftp status\n");
 }
 
