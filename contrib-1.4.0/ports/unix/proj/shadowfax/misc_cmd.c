@@ -5,12 +5,12 @@
 
 #include "lwip/tcp.h"
 #include "lwip/inet.h"
-
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
+
 /*
 struct tcp_pcb ** const tcp_pcb_lists[] = {&tcp_listen_pcbs.pcbs, &tcp_bound_pcbs,
   &tcp_active_pcbs, &tcp_tw_pcbs};
@@ -20,9 +20,11 @@ extern struct tcp_pcb ** const tcp_pcb_lists[];
 static void close_all_fd(int exp)
 {
     int i;
-    for(i = 0; i < 65536; i ++) {
-        if(exp >= 0 && exp != i)
-            close(i);
+    for(i = 0; i <= 65536; i ++) {
+        if(exp == i)
+            continue;
+
+        close(i);
     }
 }
 
@@ -158,7 +160,9 @@ static void run_command_nowait(const char * cmd, int * status)
                 ||(dup2(fd_dev_null, 2)) == -1 ) {
                 exit(253);
             }
-            close(fd_dev_null); fd_dev_null = -1;
+            if(fd_dev_null != 0) {
+                close(fd_dev_null); fd_dev_null = -1;
+            }
             execve("/bin/sh", (char **)argv, environ);
             exit(253);
         } else{ /* parent */
@@ -226,7 +230,9 @@ static char * run_command(const char * cmd, int * status)
             ||(dup2(pipefd[1], 2)) == -1 ) {
             exit(253);
         }
-        close(fd_dev_null); fd_dev_null = -1;
+        if(fd_dev_null != 0) {
+            close(fd_dev_null); fd_dev_null = -1;
+        }
         close(pipefd[1]); pipefd[1] = -1;
         execve("/bin/sh", (char **)argv, environ);
         exit(253);
@@ -259,6 +265,7 @@ static char * run_command(const char * cmd, int * status)
             }
             
             wait_ret =  waitpid(child, status, WNOHANG | WUNTRACED);
+            SDBG("waitpid return: %d\n", wait_ret);
             if(wait_ret < 0) {
                 SERR("waitpid : %m\n");
                 break; /* error */
@@ -275,9 +282,9 @@ static char * run_command(const char * cmd, int * status)
                     kill_count ++;
                     if(kill_count > LOCAL_CMD_MAX_KILL_COUNT) {
                         SWAN("give up kill\n");
-                        usleep(10 * 1000); /* 10 ms*/
                         break; /* give up*/
                     }
+                    usleep(10 * 1000); /* 10 ms*/
                 }
             } else { /* exit */
                 SDBG("child %d exit\n", child);
