@@ -151,7 +151,7 @@ static void free_cache_entry(struct addr_cache_t * entry)
 {
 
     if(NULL != entry) {
-        SDBG("Free cache entry %02x:%02x:%02x:%02x:%02x:%02x->%s:%d\n", 
+        SDBG("DEL cache entry %02x:%02x:%02x:%02x:%02x:%02x->%s:%d\n", 
             entry->eth[0], entry->eth[1],entry->eth[2],entry->eth[3],entry->eth[4],entry->eth[5],
             inet_ntoa(entry->dst.sin_addr),
             htons(entry->dst.sin_port)
@@ -612,7 +612,7 @@ int main(int argc, char *argv[])
         ret = tap_fd > sock_fd ? (tap_fd + 1) : (sock_fd + 1);
         timeo.tv_sec = 0;
         timeo.tv_usec = 10 * 1000; /* 10 ms */
-        ret = select(ret, &r_fdset, NULL, NULL, NULL);
+        ret = select(ret, &r_fdset, NULL, NULL, &timeo);
         if(ret > 0) {
           if(FD_ISSET(tap_fd, &r_fdset)) {
             /* read raw packet from tap and write to socket */
