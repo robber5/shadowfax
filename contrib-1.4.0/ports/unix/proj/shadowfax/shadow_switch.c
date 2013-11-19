@@ -40,7 +40,7 @@
 static int sock_fd;
 static int tap_fd;
 static int run_daemon;
-static int is_promiscuous_mode = 1;
+static int is_promiscuous_mode = 0;
 
 struct packet_t
 {
@@ -165,7 +165,7 @@ static struct addr_cache_t * lookup_cache(uint8_t * dst_mac)
 {
     int i;
     struct list_head *head = NULL;
-    struct addr_cache_t *pos = NULL;
+    struct addr_cache_t *pos = NULL; 
 
     i = addr_hash(dst_mac);
 
@@ -173,10 +173,15 @@ static struct addr_cache_t * lookup_cache(uint8_t * dst_mac)
 
     list_for_each_entry(pos, head, link) {
         if(!memcmp(dst_mac, pos->eth, sizeof(pos->eth))) {
+            SDBG("lookup_cache: %02x:%02x:%02x:%02x:%02x:%02x -> %s:%d\n", 
+                pos->eth[0], pos->eth[1],pos->eth[2],pos->eth[3],pos->eth[4],pos->eth[5],
+                inet_ntoa(pos->dst.sin_addr),
+                htons(pos->dst.sin_port));
             return pos;
         }
     }
-
+    SDBG("lookup_cache: %02x:%02x:%02x:%02x:%02x:%02x failed\n", 
+        dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5]);
     return NULL;
 }
 
@@ -287,11 +292,10 @@ static int send_raw_packet(struct wrap_packet_t * packet, struct addr_cache_t * 
     int size;
     if((size = wrap_packet(packet, cache)) < 0) return -1;
     ret = sendto(fd, packet, size + WRAP_HEADER_SIZE, MSG_NOSIGNAL, (struct sockaddr *)&cache->dst, sizeof(cache->dst));
-    SDBG("send_raw_packet size %d + %d return %d\n", size , WRAP_HEADER_SIZE, ret);
     return ret;
 }
 
-static int broadcast_raw_packet(struct wrap_packet_t * packet, int fd)
+static int broadcast_raw_packet(struct wrap_packet_t * packet,  struct addr_cache_t * exp, int fd)
 {
     struct addr_cache_t * pos = NULL;
     struct list_head *head = NULL;
@@ -305,8 +309,10 @@ static int broadcast_raw_packet(struct wrap_packet_t * packet, int fd)
     for(i = 0 ; i < CACHE_HASH_SIZE ; i ++) {
         head = &cache_header[i];
         list_for_each_entry(pos, head, link) {
-            if(send_raw_packet(packet, pos, fd) < 0) {
-                return -1;
+            if(pos != exp) {
+                if(send_raw_packet(packet, pos, fd) < 0) {
+                    return -1;
+                }
             }
             memcpy(packet, buffer, size);
         }
@@ -604,58 +610,64 @@ int main(int argc, char *argv[])
         FD_SET(tap_fd, &r_fdset); 
         FD_SET(sock_fd, &r_fdset); 
         ret = tap_fd > sock_fd ? (tap_fd + 1) : (sock_fd + 1);
-        timeo.tv_sec = 10;
-        timeo.tv_usec = 0; /* 100 ms */
+        timeo.tv_sec = 0;
+        timeo.tv_usec = 10 * 1000; /* 10 ms */
         ret = select(ret, &r_fdset, NULL, NULL, NULL);
         if(ret > 0) {
           if(FD_ISSET(tap_fd, &r_fdset)) {
             /* read raw packet from tap and write to socket */
             /* packet come from switch self , should send to all other host */
             ret = read(tap_fd, &p_packet->packet, sizeof(buffer) - WRAP_HEADER_SIZE);
-            SDBG("read tap: %d\n", ret);
+            SDBG("read tap fd %d\n", ret);
             if(ret < 0) {
                 SERR("read: %m\n");
                 break;
             }
 
             p_packet->sh.real_size = ret;
-            SDBG("p_packet->sh.real_size: %d\n", p_packet->sh.real_size);
 
-            if(is_broad_cast_mac(p_packet->packet.eth.ether_dhost) || 
-                (cache_dst = lookup_cache(p_packet->packet.eth.ether_dhost)) == NULL){
-                SDBG("broadcast_raw_packet\n", ret);
-                broadcast_raw_packet(p_packet, sock_fd);
+            cache_dst = lookup_cache(p_packet->packet.eth.ether_dhost);
+
+            if(is_broad_cast_mac(p_packet->packet.eth.ether_dhost)) {
+                SDBG("broadcast packet from tap to socket: is_broad_cast_mac\n");
+                broadcast_raw_packet(p_packet, NULL, sock_fd);
+            } else if(NULL == cache_dst) {
+                SDBG("broadcast packet from tap to socket: can not find dst\n");
+                broadcast_raw_packet(p_packet, NULL, sock_fd);
             } else {
+                SDBG("send packet from tap to socket: found dst\n");
                 send_raw_packet(p_packet, cache_dst, sock_fd);
-                SDBG("send_raw_packet\n", ret);
             }
-
           }
           
           if(FD_ISSET(sock_fd, &r_fdset)) {
             /* read wrap packet from socket and write to tap or socket */
             /* packet come from other host, some should send to tap, some should send to other host */
             ret = recvfrom(sock_fd, p_packet, sizeof(buffer), 0, (struct sockaddr *)&tmp_addr, &tmp_len);
-            SDBG("read sock: %d\n", ret);
+            SDBG("read socket fd %d\n", ret);
             if(ret < 0) {
                 SERR("recvfrom: %m\n");
                 break;
             }
 
+            
             cache_src = learn_mac(p_packet->dup_eth.ether_shost, &tmp_addr);
+
             if(NULL == cache_src) {
+                SERR("oom\n");
                 break;
             }
 
             /* dewrap packet to raw */
             if( dewrap_packet(p_packet, cache_src, ret) < 0) {
-                break;
+                SERR("invalid packet\n");
+                continue;
             }
         
-            if(is_self_mac(p_packet->dup_eth.ether_dhost, tap_mac) || 
+            if(is_self_mac(p_packet->dup_eth.ether_dhost, tap_mac) || /* write to tap0 ? */
                 is_broad_cast_mac(p_packet->dup_eth.ether_dhost) || 
                 is_promiscuous_mode) { /* send to tap */
-                SDBG("write tap fd\n", ret);
+                SDBG("write packet from socket to tap\n", ret);
                 ret = write(tap_fd, &p_packet->packet, p_packet->sh.real_size);
                 if(ret < 0) {
                     SERR("write: %m\n");
@@ -663,13 +675,18 @@ int main(int argc, char *argv[])
                 }
             }
 
-            if(is_broad_cast_mac(p_packet->packet.eth.ether_dhost) || 
-                (cache_dst = lookup_cache(p_packet->packet.eth.ether_dhost)) == NULL){
-                SDBG("broadcast_raw_packet\n", ret);
-                broadcast_raw_packet(p_packet, sock_fd);
-            } else {
-                SDBG("send_raw_packet\n", ret);
-                send_raw_packet(p_packet, cache_dst, sock_fd);
+            if(!is_self_mac(p_packet->dup_eth.ether_dhost, tap_mac)) { /* switch between udp socks ? */
+                cache_dst = lookup_cache(p_packet->dup_eth.ether_dhost);
+                if(is_broad_cast_mac(p_packet->packet.eth.ether_dhost)) {
+                    SDBG("broadcast packet from socket to socket: is_broad_cast_mac\n");
+                    broadcast_raw_packet(p_packet, cache_src, sock_fd);
+                } else if(NULL == cache_dst) {
+                    SDBG("broadcast packet from socket to socket: can not find dst\n");
+                    broadcast_raw_packet(p_packet, cache_src, sock_fd);
+                } else {
+                    SDBG("send packet from tap to socket: found dst\n");
+                    send_raw_packet(p_packet, cache_dst, sock_fd);
+                }
             }
           }
         } else if(ret == -1) {
